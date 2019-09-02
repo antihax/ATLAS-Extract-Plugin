@@ -1,0 +1,1 @@
+This plugin identifies harvest nodes per island for ATLAS, exports to JSON, and will force quit after the extraction is complete.
