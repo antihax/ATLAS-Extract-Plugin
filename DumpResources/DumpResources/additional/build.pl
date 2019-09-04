@@ -55,6 +55,10 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
             $key_islandID{ $island->{id} }->{claimable} = 0;
         }
 
+        if ($island->{treasureMapSpawnPoints}) {
+            $key_islandID{ $island->{id} }->{resources}{"Treasure Spawns"} = scalar @{ $island->{treasureMapSpawnPoints} };
+        }
+
         # get resources
         foreach my $key (keys %{ $overrides{$grid}{"Resources"} } ) {
             my @coords = GPSToWorld(split(/:/, $key));
@@ -69,7 +73,9 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
                 )
               )
             {
-                $key_islandID{ $island->{id} }->{resources} = $overrides{$grid}{"Resources"}{$key};
+                foreach my $hash (keys %{$overrides{$grid}{"Resources"}{$key}}) { 
+                  $key_islandID{ $island->{id} }->{resources}{$hash} =  $overrides{$grid}{"Resources"}{$key}{$hash} ;
+                }
             }   
         }
         foreach my $disco ( @{ $server->{'discoZones'} } ) {

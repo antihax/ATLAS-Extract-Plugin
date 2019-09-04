@@ -1,0 +1,2 @@
+(.*) ([A-Za-z0-9_]*);
+$1& $2Field() { return *GetNativePointerField<$1*>(this, "FSeamlessServerInfo.$2"); }

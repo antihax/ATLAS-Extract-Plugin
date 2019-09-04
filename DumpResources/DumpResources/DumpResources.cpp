@@ -76,7 +76,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
-		
+
 		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
 		if (name.Contains("FoliageOverride")) {
 			std::string island = GetIslandName(name.ToString());
@@ -115,7 +115,6 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 			}
 		}
 	}
-
 	objects.Empty();
 
 	// Get all resource node spawns
@@ -165,6 +164,22 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	}
 	objects.Empty();
 
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
+		ASupplyCrateSpawningVolume::GetPrivateStaticClass(NULL), &found_actors);
+	for (auto actor : found_actors) {
+		FString name;
+		actor->GetFullName(&name, NULL);
+		if (name.Contains("TreasureBottle")) {
+			auto sc = reinterpret_cast<ASupplyCrateSpawningVolume*> (actor);
+			auto loc = ActorGPS(sc);
+			char buff[200];
+			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+			std::string key = buff;
+			resources[key]["Maps"] = sc->MaxNumCratesField();
+		}
+	}
+	found_actors.Empty();
+
 	// Add to the json object
 	json["Resources"] = nullptr;
 	for (auto location : resources) {
@@ -173,12 +188,13 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 			json["Resources"][location.first][resource.first] = resource.second;
 		}
 	}
+
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/" + ServerGrid() + ".json");
 	file << json;
 	file.flush();
 	file.close();
-	
+
 	exit(0);
 }
 
