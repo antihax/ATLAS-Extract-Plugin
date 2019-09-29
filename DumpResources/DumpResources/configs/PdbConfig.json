@@ -1,0 +1,15 @@
+{
+"structures": [
+"UShooterGameInstance",
+"AShooterGameMode",
+"ADiscoveryZone",
+"UInstancedStaticMeshComponent",
+"ASupplyCrateSpawningVolume",
+"AFoliageAttachmentOverrideVolume",
+"UPrimalHarvestingComponent",
+"UPrimalItem",
+"UObject",
+"AActor",
+"FVector"
+]
+}

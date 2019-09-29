@@ -40,7 +40,7 @@ static FVector2D ActorGPS(AActor* a) {
 
 static std::string GetIslandName(std::string s) {
 	transform(s.begin(), s.end(), s.begin(), ::tolower);
-	const std::regex rgx("([a-z]{2,9}_[a-z]{1})_[a-z0-9_]{1,50}(-[0-9]{1,5})");
+	const std::regex rgx("([a-z]{2,9}_[a-z]{1,3})_[a-z0-9_]{1,50}(-[0-9]{1,5})");
 
 	std::smatch matches;
 	std::regex_search(s, matches, rgx);
