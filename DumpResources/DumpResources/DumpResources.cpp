@@ -52,8 +52,50 @@ static std::string GetIslandName(std::string s) {
 	return matches[1].str() + matches[2].str();
 }
 
+FString fixName(FString name) {
+	name = name.Replace(L"Common ", L"");
+	name = name.Replace(L" (Broken)", L"");
+	name = name.TrimStartAndEnd();
+	return name;
+}
+
+void dumpCraftables() {
+	nlohmann::json json;
+	json["Craftables"] = nullptr;
+
+	// Get all blueprint crafting requirements
+	TArray<UObject*> types;
+	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+	for (auto object : types) {
+		auto n = static_cast<UPrimalItem*> (object);
+			FString name;
+			n->GetItemName(&name, false, true, NULL);
+			name = fixName(name);
+			if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
+				continue;
+			for (auto res : n->BaseCraftingResourceRequirementsField()) {
+				if (res.ResourceItemType.uClass) {
+					if (res.ResourceItemType.uClass->ClassDefaultObjectField()) {
+						auto pi = static_cast<UPrimalItem*> (res.ResourceItemType.uClass->ClassDefaultObjectField());
+						FString type;
+						pi->GetItemName(&type, false, true, NULL);
+						type = fixName(type);
+						json["Craftables"][name.ToString()][type.ToString()] = res.BaseResourceRequirement;
+					}
+				}
+			}
+	}
+	std::filesystem::create_directory("resources");
+	std::ofstream file("resources/craftables.json");
+	file << json;
+	file.flush();
+	file.close();
+}
+
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
+	
+	dumpCraftables();
 
 	nlohmann::json json;
 	json["Discoveries"] = nullptr;
@@ -76,7 +118,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
-
+		// Log::GetLog()->info("{}", name.ToString());
 		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
 		if (name.Contains("FoliageOverride")) {
 			std::string island = GetIslandName(name.ToString());
@@ -117,7 +159,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	}
 	objects.Empty();
 
-	// Get all resource node spawns
+	// Get all resource node spawners
 	std::unordered_map<std::string, std::unordered_map<std::string, int>> resources;
 	Globals::GetObjectsOfClass(UInstancedStaticMeshComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
@@ -131,7 +173,6 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 				u->NameField().ToString(&name);
 
 			auto level = n->GetComponentLevel();
-
 			// Get the override key
 			FString lvlname;
 			level->GetFullName(&lvlname, NULL);
@@ -194,7 +235,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	file << json;
 	file.flush();
 	file.close();
-
+	
 	exit(0);
 }
 
