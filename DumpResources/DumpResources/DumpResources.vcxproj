@@ -50,15 +50,15 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>E:\atlas\ARK-Server-API\version\Core\Public;$(IncludePath)</IncludePath>
-    <LibraryPath>E:\atlas\ARK-Server-API\out_lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>i:\atlas\ARK-Server-API\version\Core\Public;$(IncludePath)</IncludePath>
+    <LibraryPath>i:\atlas\ARK-Server-API\out_lib;$(LibraryPath)</LibraryPath>
     <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>E:\atlas\ARK-Server-API\out_lib;$(LibraryPath)</LibraryPath>
-    <IncludePath>E:\atlas\ARK-Server-API\version\Core\Public;$(IncludePath)</IncludePath>
+    <LibraryPath>i:\atlas\ARK-Server-API\out_lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>i:\atlas\ARK-Server-API\version\Core\Public;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
@@ -78,7 +78,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy E:\atlas\ATLAS-Plugins\DumpResources\x64\Release\DumpResources.dll  E:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources</Command>
+      <Command>copy i:\atlas\ATLAS-Plugins\DumpResources\x64\Release\DumpResources.dll  i:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -102,7 +102,7 @@
       <DelayLoadDLLs>Permissions.dll</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>copy E:\atlas\ATLAS-Plugins\DumpResources\x64\Release\DumpResources.dll  E:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources</Command>
+      <Command>copy i:\atlas\ATLAS-Plugins\DumpResources\x64\Release\DumpResources.dll  i:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

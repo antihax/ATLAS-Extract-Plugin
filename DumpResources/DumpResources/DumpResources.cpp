@@ -68,22 +68,22 @@ void dumpCraftables() {
 	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
 	for (auto object : types) {
 		auto n = static_cast<UPrimalItem*> (object);
-			FString name;
-			n->GetItemName(&name, false, true, NULL);
-			name = fixName(name);
-			if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
-				continue;
-			for (auto res : n->BaseCraftingResourceRequirementsField()) {
-				if (res.ResourceItemType.uClass) {
-					if (res.ResourceItemType.uClass->ClassDefaultObjectField()) {
-						auto pi = static_cast<UPrimalItem*> (res.ResourceItemType.uClass->ClassDefaultObjectField());
-						FString type;
-						pi->GetItemName(&type, false, true, NULL);
-						type = fixName(type);
-						json["Craftables"][name.ToString()][type.ToString()] = res.BaseResourceRequirement;
-					}
+		FString name;
+		n->GetItemName(&name, false, true, NULL);
+		name = fixName(name);
+		if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
+			continue;
+		for (auto res : n->BaseCraftingResourceRequirementsField()) {
+			if (res.ResourceItemType.uClass) {
+				if (res.ResourceItemType.uClass->ClassDefaultObjectField()) {
+					auto pi = static_cast<UPrimalItem*> (res.ResourceItemType.uClass->ClassDefaultObjectField());
+					FString type;
+					pi->GetItemName(&type, false, true, NULL);
+					type = fixName(type);
+					json["Craftables"][name.ToString()][type.ToString()] = res.BaseResourceRequirement;
 				}
 			}
+		}
 	}
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/craftables.json");
@@ -94,7 +94,7 @@ void dumpCraftables() {
 
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
-	
+
 	dumpCraftables();
 
 	nlohmann::json json;
@@ -118,14 +118,32 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
-		// Log::GetLog()->info("{}", name.ToString());
+
+		/*if (name.Contains("NPCZoneManager")) {
+			auto dz = reinterpret_cast<ANPCZoneManager*> (actor);
+			for (auto dino : dz->NPCSpawnEntriesField()) {
+				for (auto npcZ : dino.NPCsToSpawnField()) {
+					if (npcZ.uClass) {
+						if (npcZ.uClass->ClassDefaultObjectField()) {
+							npcZ.uClass->GetDescription(&name);
+							//auto npc = static_cast<APrimalDinoCharacter*> (npcZ.uClass->ClassDefaultObjectField());
+							//npc->GetFullName(&name, NULL);
+							Log::GetLog()->info("Actor {}", name.ToString());
+						}
+					}
+				}
+			}
+		}*/
+
 		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
 		if (name.Contains("FoliageOverride")) {
+			//Log::GetLog()->info("Overrides {}", name.ToString());
 			std::string island = GetIslandName(name.ToString());
 			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
 			for (auto oxr : dz->FoliageAttachmentOverrides()) {
 				FString name;
 				oxr.ForFoliageTypeName.ToString(&name);
+				//Log::GetLog()->info("\t{}", name.ToString());
 				OverrideClasses[island + "_" + name.ToString()] = oxr.OverrideActorComponent.uClass;
 			}
 		}
@@ -138,6 +156,10 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
 		auto n = static_cast<UPrimalHarvestingComponent*> (object);
+		FString name;
+		n->GetFullName(&name, NULL);
+		//Log::GetLog()->info("Harvest {}", name.ToString());
+
 		// Find all the resources provided by the component
 		for (auto r : n->HarvestResourceEntries()) {
 			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
@@ -146,13 +168,19 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 					auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
 					FString type;
 					pi->GetItemName(&type, false, false, NULL);
+					if (name.StartsWith("StoneHarvestComponent"))
+						type.Append(" (Rock)");
+					//Log::GetLog()->info("\t{}", type.ToString());
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 				else {
 					// Add resource to the list
-					FString name;
-					hcSub.uClass->GetDescription(&name);
-					harvestableClasses[n->ClassField()].push_back(name.ToString());
+					FString type;
+					hcSub.uClass->GetDescription(&type);
+					if (name.StartsWith("StoneHarvestComponent"))
+						type.Append(" (Rock)");
+					//Log::GetLog()->info("\t{}", type.ToString());
+					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 			}
 		}
@@ -235,7 +263,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	file << json;
 	file.flush();
 	file.close();
-	
+
 	exit(0);
 }
 

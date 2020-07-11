@@ -7,7 +7,7 @@ use strict;
 use Data::Dumper;
 use warnings;
 
-#/mnt/e/atlas/ATLAS_DevKit_v12.0/Projects/ShooterGame/Content/Maps/SeamlessTest
+#/mnt/i/atlas/ATLAS_DevKit_v12.0/Projects/ShooterGame/Content/Maps/SeamlessTest
 
 @ARGV = qw(.) unless @ARGV;
 my %maps;

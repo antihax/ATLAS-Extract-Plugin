@@ -1,15 +1,17 @@
 {
-"structures": [
-"UShooterGameInstance",
-"AShooterGameMode",
-"ADiscoveryZone",
-"UInstancedStaticMeshComponent",
-"ASupplyCrateSpawningVolume",
-"AFoliageAttachmentOverrideVolume",
-"UPrimalHarvestingComponent",
-"UPrimalItem",
-"UObject",
-"AActor",
-"FVector"
-]
+  "structures": [
+    "UShooterGameInstance",
+    "AShooterGameMode",
+    "ANPCZoneManager",
+    "ADiscoveryZone",
+    "UInstancedStaticMeshComponent",
+    "ASupplyCrateSpawningVolume",
+    "AFoliageAttachmentOverrideVolume",
+    "UPrimalHarvestingComponent",
+    "UPrimalItem",
+    "UObject",
+    "AActor",
+    "FVector"
+  ],
+  "functions": ["GetObjectsOfClass"]
 }
