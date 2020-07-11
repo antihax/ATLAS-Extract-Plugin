@@ -19,7 +19,7 @@ find sub {
         my $name = $1;
         print "$1\n";
         my $file = $File::Find::name;
-        open( my $fh, "<", $file );
+        open( my $fh, "<", $file ) or die("cant open " . $file);
         my $mapFile = do { local $/; <$fh> };
 
         $mapFile =~ s/Atlas//gi;
@@ -37,7 +37,7 @@ find sub {
         my @uniqort = uniq @templateList;
         $maps{$name}{overrides} = \@uniqort;
     }
-}, $ARGV[0] . "/Content/Maps/SeamlessTest";
+},  "/mnt/i/atlas/server/ShooterGame/Content/Maps/SeamlessTest";
 
 print "Save mapResources\n";
 open(my $fh, ">", "mapResources.json") or die "cannot write mapResources.json";;

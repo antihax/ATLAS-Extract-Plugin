@@ -5,35 +5,35 @@ use List::MoreUtils qw(uniq);
 
 sub WorldToGPS {
   my ($x, $y) = @_;
-  my $long = (($x / 21000000) * 200) - 100;
-  my $lat = 100 - (($y / 21000000) * 200);
+  my $long = (($x / 15400000) * 200) - 100;
+  my $lat = 100 - (($y / 15400000) * 200);
   return ($long,$lat);
 }
 
 sub GPSToWorld {
   my ($x, $y) = @_;
-  my $long = ( ( $x + 100 ) / 200 ) * 21000000;
-  my $lat =  ( (-$y + 100 ) / 200  ) * 21000000;
+  my $long = ( ( $x + 100 ) / 200 ) * 15400000;
+  my $lat =  ( (-$y + 100 ) / 200  ) * 15400000;
   return ($long,$lat);
 }
 
-open( my $fh, "<", "ServerGrid.json" );
+open( my $fh, "<", "server/ShooterGame/ServerGrid.json" ) or die("cant open ServerGrid.json");
 my $serverConfig = decode_json(
     do { local $/; <$fh> }
 );
 close $fh;
 
-open( my $fh, "<", "mapResources.json" );
+open( my $fh, "<", "mapResources.json" ) or die("cant open mapResources.json");
 my $mapResources = decode_json(
     do { local $/; <$fh> }
 );
 close $fh;
 
 my %overrides;
-for (my $x = 0; $x < 15; $x++) {
-    for (my $y = 0; $y < 15; $y++) {
+for (my $x = 0; $x < 11; $x++) {
+    for (my $y = 0; $y < 11; $y++) {
         my $grid = chr( 65 + $x ) . ( 1 + $y );
-        open( my $fh, "<", "./resources/$grid.json" ) or next;
+        open( my $fh, "<", "./server/ShooterGame/Binaries/Win64/resources/$grid.json" ) or next;
         $overrides{$grid} = decode_json(
             do { local $/; <$fh> }
         );
@@ -148,7 +148,7 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
 }
 
 my $json = JSON::PP->new->ascii->pretty->allow_nonref;
-open( my $fh, ">", "islandList.json" ) or die "cannot write islandList.json";
+open( my $fh, ">", "islands.json" ) or die "cannot write islands.json";
 print $fh $json->encode( \%key_islandID );
 close($fh);
 
