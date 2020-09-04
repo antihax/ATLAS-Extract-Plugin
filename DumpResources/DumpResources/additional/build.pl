@@ -3,17 +3,22 @@ use JSON::PP;
 use Data::Dumper;
 use List::MoreUtils qw(uniq);
 
+my $gridUnits = 1400000;
+my $numGridsX = 11;
+my $numGridsY = 11;
+my $worldUnits = $gridUnits * $numGridsX;
+
 sub WorldToGPS {
   my ($x, $y) = @_;
-  my $long = (($x / 15400000) * 200) - 100;
-  my $lat = 100 - (($y / 15400000) * 200);
+  my $long = (($x / $worldUnits) * 200) - 100;
+  my $lat = 100 - (($y / $worldUnits) * 200);
   return ($long,$lat);
 }
 
 sub GPSToWorld {
   my ($x, $y) = @_;
-  my $long = ( ( $x + 100 ) / 200 ) * 15400000;
-  my $lat =  ( (-$y + 100 ) / 200  ) * 15400000;
+  my $long = ( ( $x + 100 ) / 200 ) * $worldUnits;
+  my $lat =  ( (-$y + 100 ) / 200  ) * $worldUnits;
   return ($long,$lat);
 }
 
@@ -29,14 +34,26 @@ my $mapResources = decode_json(
 );
 close $fh;
 
-my %overrides;
-for (my $x = 0; $x < 11; $x++) {
-    for (my $y = 0; $y < 11; $y++) {
+my %overrides, @stones;
+for (my $x = 0; $x < $numGridsX; $x++) {
+    for (my $y = 0; $y < $numGridsY; $y++) {
         my $grid = chr( 65 + $x ) . ( 1 + $y );
         open( my $fh, "<", "./server/ShooterGame/Binaries/Win64/resources/$grid.json" ) or next;
         $overrides{$grid} = decode_json(
             do { local $/; <$fh> }
         );
+        if ($overrides{$grid}{"Stones"}) {
+            foreach $stone (keys %{$overrides{$grid}{"Stones"}} ) {
+                print Dumper($stone) if $stone;
+                push @stones, 
+                { 
+                    name => $stone, 
+                    long => $overrides{$grid}{"Stones"}{$stone}[0], 
+                    lat => $overrides{$grid}{"Stones"}{$stone}[1], 
+                };
+            }
+        }
+
         close $fh;
     }
 }
@@ -147,18 +164,18 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
 
 }
 
-my $json = JSON::PP->new->ascii->pretty->allow_nonref;
-open( my $fh, ">", "islands.json" ) or die "cannot write islands.json";
-print $fh $json->encode( \%key_islandID );
-close($fh);
 
-my %key_grid;
+my %key_grid, %island_grid;
 foreach my $island (keys %key_islandID)
 {
     foreach my $resource (  keys %{ $key_islandID{ $island }->{resources} }  )
     {
-        push(@{$key_grid{$key_islandID{$island}->{grid}}->{resources}}, $resource);
-        @{ $key_grid{ $key_islandID{$island}->{grid}}->{resources} } = uniq sort @{$key_grid{$key_islandID{$island}->{grid}}->{resources} };
+        push(@{$key_grid{ $key_islandID{$island}->{grid} }->{resources}}, $resource);
+        @{ $key_grid{ $key_islandID{$island}->{grid} }->{resources} } = uniq sort @{$key_grid{$key_islandID{$island}->{grid}}->{resources} };
+
+        push(@{$island_grid{ $key_islandID{$island}->{name} }->{resources}}, $resource);
+        @{ $island_grid{ $key_islandID{$island}->{name}}->{resources} } = uniq sort @{$island_grid{$key_islandID{$island}->{name}}->{resources} };
+        
     }
     foreach my $resource ( @{$key_islandID{ $island }->{animals}} )
     {
@@ -171,12 +188,22 @@ foreach my $island (keys %key_islandID)
     $key_grid{$key_islandID{$island}->{grid}}->{claimable} += $key_islandID{ $island }->{claimable};
 }
 
-open( my $fh, ">", "gridList.json" ) or die "cannot write gridList.json";
-print $fh $json->encode( \%key_grid );
-close($fh);
+jsonOut(\%key_islandID, "islands.json");
+jsonOut(\%key_grid, "gridList.json");
+jsonOut(\%island_grid, "islandList.json");
+jsonOut($serverConfig->{'shipPaths'}, "shipPaths.json");
+jsonOut(\@stones, "stones.json");
+
+sub jsonOut {
+    local ( $data, $filename ) = @_;
+    my $json = JSON::PP->new->ascii->pretty->allow_nonref;
+    open( my $fh, ">", $filename ) or die "cannot write " . $filename;
+    print $fh $json->encode( $data );
+    close($fh);
+}
 
 sub inside {
-    ( $x1, $y1, $x2, $y2, $x, $y ) = @_;
+    local ( $x1, $y1, $x2, $y2, $x, $y ) = @_;
     if (   $x > $x1
         && $x < $x2
         && $y > $y1

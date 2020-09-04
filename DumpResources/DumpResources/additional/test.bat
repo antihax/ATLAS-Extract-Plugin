@@ -1,1 +1,1 @@
-Server\ShooterGame\Binaries\Win64\ShooterGameServer.exe Ocean?ServerX=9?ServerY=8?AltSaveDirectoryName=98?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer 
+Server\ShooterGame\Binaries\Win64\ShooterGameServer.exe Ocean?ServerX=4?ServerY=4?AltSaveDirectoryName=64?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer 
