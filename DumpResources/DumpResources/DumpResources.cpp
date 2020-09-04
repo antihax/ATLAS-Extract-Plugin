@@ -21,6 +21,22 @@ static const std::string ServerGrid() {
 	return std::string(1, x[grid->GetCurrentServerInfo()->gridXField()]) + std::string(y[grid->GetCurrentServerInfo()->gridYField()]);
 };
 
+FString GetStoneIndexFromActor(AActor* a)
+{
+	int island;
+	TArray<FString> islandData1;
+	TArray<FString> islandData2;
+	UVictoryCore::GetIslandCustomDatas(a, &island, &islandData1, &islandData2);
+
+	int findVar = 0;
+	for (auto s : islandData1) {
+		if (s.Equals("PowerStoneIndex")) {
+			return islandData2[findVar];
+		}
+		findVar++;
+	}
+	return FString("");
+}
 
 static FVector2D VectorGPS(FVector loc) {
 	// Get server grid 
@@ -97,13 +113,15 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 
 	dumpCraftables();
 
+	UWorld* World = ArkApi::GetApiUtils().GetWorld();
+
 	nlohmann::json json;
 	json["Discoveries"] = nullptr;
+	json["Stones"] = nullptr;
 
 	// Get all Discoveries
 	TArray<AActor*> found_actors;
-	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
-		ADiscoveryZone::GetPrivateStaticClass(NULL), &found_actors);
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), ADiscoveryZone::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		auto dz = static_cast<ADiscoveryZone*> (actor);
 		auto gps = ActorGPS(dz);
@@ -113,29 +131,31 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 
 	// Build a map of all override resources and their resulting class
 	std::unordered_map<std::string, UClass*> OverrideClasses;
-	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
-		AActor::GetPrivateStaticClass(NULL), &found_actors);
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
+		Log::GetLog()->info("{}", name.ToString());
 
-		/*if (name.Contains("NPCZoneManager")) {
-			auto dz = reinterpret_cast<ANPCZoneManager*> (actor);
-			for (auto dino : dz->NPCSpawnEntriesField()) {
-				for (auto npcZ : dino.NPCsToSpawnField()) {
-					if (npcZ.uClass) {
-						if (npcZ.uClass->ClassDefaultObjectField()) {
-							npcZ.uClass->GetDescription(&name);
-							//auto npc = static_cast<APrimalDinoCharacter*> (npcZ.uClass->ClassDefaultObjectField());
-							//npc->GetFullName(&name, NULL);
-							Log::GetLog()->info("Actor {}", name.ToString());
-						}
-					}
-				}
-			}
+		/*if (name.Contains("Biome_C")) {
+			auto bz = reinterpret_cast<ABiomeZoneVolume*> (actor);
+			auto gps = ActorGPS(bz);
+			Log::GetLog()->info("{}\t{}\t{}", name.ToString(), gps.X, gps.Y);
 		}*/
-
-		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
+			
+		// Find the power stones
+		if (name.Contains("PowerStoneStation_BP_C")) {
+			auto gps = ActorGPS(actor);
+			FString s = GetStoneIndexFromActor(actor);
+			if (name.Contains("Secondary")) {
+				if (name.EndsWith(s)) {
+					json["Stones"]["Essence " + s.ToString()] = { gps.X, gps.Y };
+				}
+			} else {
+				json["Stones"]["Stone " + s.ToString()] = { gps.X, gps.Y };
+			}
+		}
+		
 		if (name.Contains("FoliageOverride")) {
 			//Log::GetLog()->info("Overrides {}", name.ToString());
 			std::string island = GetIslandName(name.ToString());
@@ -153,6 +173,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	// Build map of harvestable classes
 	TArray<UObject*> objects;
 	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses;
+
 	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
 		auto n = static_cast<UPrimalHarvestingComponent*> (object);
@@ -170,7 +191,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 					pi->GetItemName(&type, false, false, NULL);
 					if (name.StartsWith("StoneHarvestComponent"))
 						type.Append(" (Rock)");
-					//Log::GetLog()->info("\t{}", type.ToString());
+					//Log::GetLog()->info("\t{}\t{}", name.ToString(), type.ToString());
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 				else {
@@ -179,7 +200,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 					hcSub.uClass->GetDescription(&type);
 					if (name.StartsWith("StoneHarvestComponent"))
 						type.Append(" (Rock)");
-					//Log::GetLog()->info("\t{}", type.ToString());
+					//Log::GetLog()->info("\t{}\t{}", name.ToString(), type.ToString());
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 			}
@@ -233,11 +254,20 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	}
 	objects.Empty();
 
-	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
-		ASupplyCrateSpawningVolume::GetPrivateStaticClass(NULL), &found_actors);
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World),
+		AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
+
+		if (name.Contains("BP_Lake")) {
+			auto loc = ActorGPS(actor);
+			char buff[200];
+			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+			std::string key = buff;
+			resources[key]["FreshWater"]=1;
+		}
+
 		if (name.Contains("TreasureBottle")) {
 			auto sc = reinterpret_cast<ASupplyCrateSpawningVolume*> (actor);
 			auto loc = ActorGPS(sc);
@@ -266,6 +296,8 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 
 	exit(0);
 }
+
+
 
 void Load() {
 	Log::Get().Init("DumpResources");

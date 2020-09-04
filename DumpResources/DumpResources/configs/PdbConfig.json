@@ -4,6 +4,7 @@
     "AShooterGameMode",
     "ANPCZoneManager",
     "ADiscoveryZone",
+    "ABiomeZoneVolume",
     "UInstancedStaticMeshComponent",
     "ASupplyCrateSpawningVolume",
     "AFoliageAttachmentOverrideVolume",
