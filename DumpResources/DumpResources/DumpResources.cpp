@@ -135,14 +135,30 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
-		Log::GetLog()->info("{}", name.ToString());
+		//	Log::GetLog()->info("{}", name.ToString());
 
-		/*if (name.Contains("Biome_C")) {
-			auto bz = reinterpret_cast<ABiomeZoneVolume*> (actor);
-			auto gps = ActorGPS(bz);
-			Log::GetLog()->info("{}\t{}\t{}", name.ToString(), gps.X, gps.Y);
-		}*/
-			
+			/*if (name.Contains("Biome_C")) {
+				auto bz = reinterpret_cast<ABiomeZoneVolume*> (actor);
+				auto gps = ActorGPS(bz);
+				Log::GetLog()->info("{}\t{}\t{}", name.ToString(), gps.X, gps.Y);
+			}*/
+
+		if (name.Contains("CreatureSpawnEntries_Boss")) {
+			auto zoneManager = reinterpret_cast<ANPCZoneManager*> (actor);
+			FString boss = "Unknown";
+			if (name.Contains("Dragon")) {
+				boss = "Drake";
+			}
+			else if (name.Contains("Hydra")) {
+				boss = "Hydra";
+			}
+			json["Boss"][boss.ToString()] = nlohmann::json::array();
+			for (auto spawnVolume : zoneManager->LinkedZoneSpawnVolumeEntriesField()) {
+				auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
+				json["Boss"][boss.ToString()].push_back({ gps.X, gps.Y });
+			}
+		}
+
 		// Find the power stones
 		if (name.Contains("PowerStoneStation_BP_C")) {
 			auto gps = ActorGPS(actor);
@@ -151,11 +167,12 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 				if (name.EndsWith(s)) {
 					json["Stones"]["Essence " + s.ToString()] = { gps.X, gps.Y };
 				}
-			} else {
+			}
+			else {
 				json["Stones"]["Stone " + s.ToString()] = { gps.X, gps.Y };
 			}
 		}
-		
+
 		if (name.Contains("FoliageOverride")) {
 			//Log::GetLog()->info("Overrides {}", name.ToString());
 			std::string island = GetIslandName(name.ToString());
@@ -265,7 +282,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 			char buff[200];
 			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 			std::string key = buff;
-			resources[key]["FreshWater"]=1;
+			resources[key]["FreshWater"] = 1;
 		}
 
 		if (name.Contains("TreasureBottle")) {
@@ -296,8 +313,6 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 
 	exit(0);
 }
-
-
 
 void Load() {
 	Log::Get().Init("DumpResources");
