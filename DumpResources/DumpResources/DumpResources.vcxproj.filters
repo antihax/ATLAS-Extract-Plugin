@@ -18,8 +18,16 @@
     <ClCompile Include="DumpResources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="convexHull.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Format Field.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="convexHull.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

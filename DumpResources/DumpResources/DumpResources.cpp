@@ -1,24 +1,25 @@
 #include <iostream>
 #include <fstream>
 #include <API/Atlas/Atlas.h>
-#include <vector>
 #include <unordered_map>
 #include <regex>
 #include <filesystem>
 #include "json.hpp"
+#include "convexHull.h"
 
 #pragma comment(lib, "AtlasApi.lib")
 
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*);
 
-
 static const std::string ServerGrid() {
 	// Get server grid 
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
-	const char x[15] = { 'A', 'B', 'C', 'D' , 'E' , 'F' , 'G' , 'H' , 'I' , 'J' , 'K' , 'L' , 'M' , 'N', 'O' };
-	const char* y[15] = { "1", "2", "3", "4" , "5" , "6" , "7" , "8" , "9" , "10" , "11" , "12" , "13" , "14", "15" };
+	const char* x[15] = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O" };
+	const char* y[15] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15" };
 
-	return std::string(1, x[grid->GetCurrentServerInfo()->gridXField()]) + std::string(y[grid->GetCurrentServerInfo()->gridYField()]);
+	std::string gridStr = x[grid->GetCurrentServerInfo()->gridXField()];
+	gridStr += y[grid->GetCurrentServerInfo()->gridYField()];
+	return gridStr;
 };
 
 FString GetStoneIndexFromActor(AActor* a)
@@ -68,6 +69,7 @@ static std::string GetIslandName(std::string s) {
 	return matches[1].str() + matches[2].str();
 }
 
+// Remove things we do not care about.
 FString fixName(FString name) {
 	name = name.Replace(L"Common ", L"");
 	name = name.Replace(L" (Broken)", L"");
@@ -87,6 +89,8 @@ void dumpCraftables() {
 		FString name;
 		n->GetItemName(&name, false, true, NULL);
 		name = fixName(name);
+
+		// Ignore some of the trash items
 		if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
 			continue;
 		for (auto res : n->BaseCraftingResourceRequirementsField()) {
@@ -96,7 +100,7 @@ void dumpCraftables() {
 					FString type;
 					pi->GetItemName(&type, false, true, NULL);
 					type = fixName(type);
-					json["Craftables"][name.ToString()][type.ToString()] = res.BaseResourceRequirement;
+					json["Craftables"][name.ToString()]["Ingredients"][type.ToString()] = res.BaseResourceRequirement;
 				}
 			}
 		}
@@ -108,17 +112,9 @@ void dumpCraftables() {
 	file.close();
 }
 
-void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
-	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
 
-	dumpCraftables();
-
-	UWorld* World = ArkApi::GetApiUtils().GetWorld();
-
+nlohmann::json getDiscoveries(UWorld* World) {
 	nlohmann::json json;
-	json["Discoveries"] = nullptr;
-	json["Stones"] = nullptr;
-
 	// Get all Discoveries
 	TArray<AActor*> found_actors;
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), ADiscoveryZone::GetPrivateStaticClass(NULL), &found_actors);
@@ -127,24 +123,73 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 		auto gps = ActorGPS(dz);
 		json["Discoveries"][dz->VolumeName().ToString()] = { gps.X, gps.Y };
 	}
-	found_actors.Empty();
+	return json;
+}
 
-	// Build a map of all override resources and their resulting class
+// Build map of harvestable classes
+std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
+	TArray<UObject*> objects;
+	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses;
+	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
+	for (auto object : objects) {
+		auto n = static_cast<UPrimalHarvestingComponent*> (object);
+		FString name;
+		n->GetFullName(&name, NULL);
+
+		// Find all the resources provided by the component
+		for (auto r : n->HarvestResourceEntries()) {
+			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
+			if (hcSub.uClass) {
+				if (hcSub.uClass->ClassDefaultObjectField()) {
+					auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
+					FString type;
+					pi->GetItemName(&type, false, false, NULL);
+					if (name.StartsWith("StoneHarvestComponent"))
+						type.Append(" (Rock)");
+					harvestableClasses[n->ClassField()].push_back(type.ToString());
+				}
+				else {
+					// Add resource to the list
+					FString type;
+					hcSub.uClass->GetDescription(&type);
+					if (name.StartsWith("StoneHarvestComponent"))
+						type.Append(" (Rock)");
+					harvestableClasses[n->ClassField()].push_back(type.ToString());
+				}
+			}
+		}
+	}
+	objects.Empty();
+	return harvestableClasses;
+}
+
+void extract() {
+	UWorld* World = ArkApi::GetApiUtils().GetWorld();
+	nlohmann::json json;
+
+	// Save craftables.
+	dumpCraftables();
+	
+	// Get discovery Zones
+	json["Discoveries"] = getDiscoveries(World);
+	
+	TArray<AActor*> found_actors;
+
+	// Loop all actors first time to find overrides and things we are interested in
 	std::unordered_map<std::string, UClass*> OverrideClasses;
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
-		//	Log::GetLog()->info("{}", name.ToString());
 
-			/*if (name.Contains("Biome_C")) {
-				auto bz = reinterpret_cast<ABiomeZoneVolume*> (actor);
-				auto gps = ActorGPS(bz);
-				Log::GetLog()->info("{}\t{}\t{}", name.ToString(), gps.X, gps.Y);
-			}*/
-
+		// BOSSES
+		// Look for boss managers & entries
 		if (name.Contains("CreatureSpawnEntries_Boss")) {
-			auto zoneManager = reinterpret_cast<ANPCZoneManager*> (actor);
+			// Some islands have remapped bosses, so get the container name instead.
+			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
+			auto type = static_cast<UNPCSpawnEntriesContainer*> (zoneManager->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
+			type->GetFullName(&name, NULL);
+
 			FString boss = "Unknown";
 			if (name.Contains("Dragon")) {
 				boss = "Drake";
@@ -157,8 +202,41 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 				auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
 				json["Boss"][boss.ToString()].push_back({ gps.X, gps.Y });
 			}
+			continue;
+		} else if (name.Contains("OceanEpicNPCZoneManager")) {
+			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
+			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
+				int count = 0;
+				for (const auto npc : dino.NPCsToSpawn) {
+					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
+					type->GetFullName(&name, NULL);
+					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
+
+					if (name.Contains("MeanWhale_SeaMonster")) {
+						json["Boss"]["MeanWhale"] = nlohmann::json::array();
+						json["Boss"]["MeanWhale"].push_back({ gps.X, gps.Y });
+					}
+					else if (name.Contains("GentleWhale_SeaMonster")) {
+						json["Boss"]["GentleWhale"] = nlohmann::json::array();
+						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
+					}
+					else if (name.Contains("Squid_Character")) {
+						json["Boss"]["GiantSquid"] = nlohmann::json::array();
+						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
+					}
+
+					count++;
+				}
+			}
+			continue;
+		} else if (name.Contains("SnowCaveBossManager")) {
+			auto gps = ActorGPS(actor);
+			json["Boss"]["Yeti"] = nlohmann::json::array();
+			json["Boss"]["Yeti"].push_back({ gps.X, gps.Y });
+			continue;
 		}
 
+		// POWERSTONE AND ESSENCE
 		// Find the power stones
 		if (name.Contains("PowerStoneStation_BP_C")) {
 			auto gps = ActorGPS(actor);
@@ -171,62 +249,32 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 			else {
 				json["Stones"]["Stone " + s.ToString()] = { gps.X, gps.Y };
 			}
+			continue;
 		}
 
+		// RESOURCE OVERRIDES
+		// Build list of class overrides for foliage
 		if (name.Contains("FoliageOverride")) {
-			//Log::GetLog()->info("Overrides {}", name.ToString());
 			std::string island = GetIslandName(name.ToString());
 			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
 			for (auto oxr : dz->FoliageAttachmentOverrides()) {
 				FString name;
 				oxr.ForFoliageTypeName.ToString(&name);
-				//Log::GetLog()->info("\t{}", name.ToString());
 				OverrideClasses[island + "_" + name.ToString()] = oxr.OverrideActorComponent.uClass;
 			}
 		}
 	}
 	found_actors.Empty();
 
-	// Build map of harvestable classes
-	TArray<UObject*> objects;
-	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses;
-
-	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
-	for (auto object : objects) {
-		auto n = static_cast<UPrimalHarvestingComponent*> (object);
-		FString name;
-		n->GetFullName(&name, NULL);
-		//Log::GetLog()->info("Harvest {}", name.ToString());
-
-		// Find all the resources provided by the component
-		for (auto r : n->HarvestResourceEntries()) {
-			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
-			if (hcSub.uClass) {
-				if (hcSub.uClass->ClassDefaultObjectField()) {
-					auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
-					FString type;
-					pi->GetItemName(&type, false, false, NULL);
-					if (name.StartsWith("StoneHarvestComponent"))
-						type.Append(" (Rock)");
-					//Log::GetLog()->info("\t{}\t{}", name.ToString(), type.ToString());
-					harvestableClasses[n->ClassField()].push_back(type.ToString());
-				}
-				else {
-					// Add resource to the list
-					FString type;
-					hcSub.uClass->GetDescription(&type);
-					if (name.StartsWith("StoneHarvestComponent"))
-						type.Append(" (Rock)");
-					//Log::GetLog()->info("\t{}\t{}", name.ToString(), type.ToString());
-					harvestableClasses[n->ClassField()].push_back(type.ToString());
-				}
-			}
-		}
-	}
-	objects.Empty();
-
-	// Get all resource node spawners
+	// Find actual resources, maps, and meshes
+	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses = getHarvestableClasses();
 	std::unordered_map<std::string, std::unordered_map<std::string, int>> resources;
+	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
+	std::unordered_map<std::string, std::vector<std::string>> meshes;
+
+	nlohmann::json resourceNodes;
+
+	TArray<UObject*> objects;
 	Globals::GetObjectsOfClass(UInstancedStaticMeshComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
 		auto n = reinterpret_cast<UInstancedStaticMeshComponent*> (object);
@@ -251,31 +299,67 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 				nSub = OverrideClasses[overrideSettings];
 			}
 
-			// If we actually found a subclass, process the resource
 			if (nSub) {
 				// Get GPS Coords
 				FVector vec;
 				n->GetWorldLocation(&vec);
 				const FVector2D loc = VectorGPS(vec);
 
-				// Add all the harvestable classes
-				auto rs = harvestableClasses[nSub];
-				for (auto r : rs) {
-					char buff[200];
-					snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
-					std::string key = buff;
-					resources[key][r] += 1;
+				auto count = n->GetInstanceCount();
+				// Don't add 0 counts
+				if (count > 0) {
+					// Add all the harvestable classes
+					auto rs = harvestableClasses[nSub];
+					std::string nodes = std::accumulate(std::begin(rs), std::end(rs), std::string(), [](std::string& ss, std::string& s) { return ss.empty() ? s : ss + ", " + s; });
+
+					for (auto r : rs) {
+						char buff[200];
+						snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+						std::string key = buff;
+						resources[key][r] += count;
+					}
+
+					for (int i = 0; i < count; i++) {
+						FVector x;
+						n->GetPositionOfInstance(&x, i);
+						auto g = VectorGPS(x);
+						resourceNodes[island][nodes].push_back(std::make_pair(g.X, g.Y));
+					}
 				}
 			}
 		}
 	}
 	objects.Empty();
 
+	for (auto island : resourceNodes.items()) {
+		for (auto node : resourceNodes[island.key()].items()) {
+			std::vector<point> points = resourceNodes[island.key()][node.key()];
+			// Find areas of resources
+			auto hull = convexHull(points);
+			for (auto point : hull) {
+				json["DetailedResources"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
+			}
+		}
+	}
+
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World),
 		AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
+
+		if (
+			name.Contains("HierarchicalInstancedStaticMeshActor") &&
+			!name.Contains("Rock") &&
+			!name.Contains("Boulder") &&
+			!name.Contains("Capture_Point")
+			) {
+			auto loc = ActorGPS(actor);
+			char buff[200];
+			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+			std::string key = buff;
+			meshes[key].push_back(name.Mid(name.Find(".") + 1).ToString());
+		}
 
 		if (name.Contains("BP_Lake")) {
 			auto loc = ActorGPS(actor);
@@ -292,12 +376,18 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 			std::string key = buff;
 			resources[key]["Maps"] = sc->MaxNumCratesField();
+			Log::GetLog()->info("{} ", key);
+			for (auto se : sc->LinkedSupplyCrateEntriesField()) {
+				maps[key].push_back({ se.EntryWeight, se.OverrideCrateValues.RandomQualityMultiplierMin, se.OverrideCrateValues.RandomQualityMultiplierMax, se.OverrideCrateValues.RandomQualityMultiplierPower });
+			}
 		}
 	}
 	found_actors.Empty();
 
 	// Add to the json object
 	json["Resources"] = nullptr;
+	json["Maps"] = nullptr;
+	json["Meshes"] = nullptr;
 	for (auto location : resources) {
 		json["Resources"][location.first] = nullptr;
 		for (auto resource : location.second) {
@@ -305,11 +395,26 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 		}
 	}
 
+	for (auto location : maps) {
+		json["Maps"][location.first] = nullptr;
+		json["Maps"][location.first] = location.second;
+	}
+
+	for (auto location : meshes) {
+		json["Meshes"][location.first] = nullptr;
+		json["Meshes"][location.first] = location.second;
+	}
+
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/" + ServerGrid() + ".json");
 	file << json;
 	file.flush();
 	file.close();
+}
+
+void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
+	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
+	extract();
 
 	exit(0);
 }
