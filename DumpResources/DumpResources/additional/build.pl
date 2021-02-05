@@ -8,20 +8,6 @@ my $numGridsX = 11;
 my $numGridsY = 11;
 my $worldUnits = $gridUnits * $numGridsX;
 
-sub WorldToGPS {
-  my ($x, $y) = @_;
-  my $long = (($x / $worldUnits) * 200) - 100;
-  my $lat = 100 - (($y / $worldUnits) * 200);
-  return ($long,$lat);
-}
-
-sub GPSToWorld {
-  my ($x, $y) = @_;
-  my $long = ( ( $x + 100 ) / 200 ) * $worldUnits;
-  my $lat =  ( (-$y + 100 ) / 200  ) * $worldUnits;
-  return ($long,$lat);
-}
-
 open( my $fh, "<", "server/ShooterGame/ServerGrid.json" ) or die("cant open ServerGrid.json");
 my $serverConfig = decode_json(
     do { local $/; <$fh> }
@@ -34,23 +20,35 @@ my $mapResources = decode_json(
 );
 close $fh;
 
-my %overrides, @stones;
+my %rawData, @stones, @bosses;
 for (my $x = 0; $x < $numGridsX; $x++) {
     for (my $y = 0; $y < $numGridsY; $y++) {
         my $grid = chr( 65 + $x ) . ( 1 + $y );
         open( my $fh, "<", "./server/ShooterGame/Binaries/Win64/resources/$grid.json" ) or next;
-        $overrides{$grid} = decode_json(
+        $rawData{$grid} = decode_json(
             do { local $/; <$fh> }
         );
-        if ($overrides{$grid}{"Stones"}) {
-            foreach $stone (keys %{$overrides{$grid}{"Stones"}} ) {
-                print Dumper($stone) if $stone;
+        if ($rawData{$grid}{"Stones"}) {
+            foreach $stone (keys %{$rawData{$grid}{"Stones"}} ) {
                 push @stones, 
                 { 
                     name => $stone, 
-                    long => $overrides{$grid}{"Stones"}{$stone}[0], 
-                    lat => $overrides{$grid}{"Stones"}{$stone}[1], 
+                    long => $rawData{$grid}{"Stones"}{$stone}[0], 
+                    lat => $rawData{$grid}{"Stones"}{$stone}[1], 
                 };
+            }
+        }
+
+        if ($rawData{$grid}{"Boss"}) {
+            foreach $boss (keys %{$rawData{$grid}{"Boss"}} ) {
+                 foreach $position (@{$rawData{$grid}{"Boss"}{$boss}}) {
+                    push @bosses, 
+                    { 
+                        name => $boss, 
+                        long => @{$position}[0], 
+                        lat => @{$position}[1], 
+                    };
+                 }
             }
         }
 
@@ -77,7 +75,7 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
         }
 
         # get resources
-        foreach my $key (keys %{ $overrides{$grid}{"Resources"} } ) {
+        foreach my $key (keys %{ $rawData{$grid}{"Resources"} } ) {
             my @coords = GPSToWorld(split(/:/, $key));
             if (
                 inside(
@@ -90,11 +88,45 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
                 )
               )
             {
-                foreach my $hash (keys %{$overrides{$grid}{"Resources"}{$key}}) { 
-                  $key_islandID{ $island->{id} }->{resources}{$hash} =  $overrides{$grid}{"Resources"}{$key}{$hash} ;
+                foreach my $hash (keys %{$rawData{$grid}{"Resources"}{$key}}) { 
+                  $key_islandID{ $island->{id} }->{resources}{$hash} =  $rawData{$grid}{"Resources"}{$key}{$hash} ;
                 }
             }   
         }
+        foreach my $key (keys %{ $rawData{$grid}{"Maps"} } ) {
+            my @coords = GPSToWorld(split(/:/, $key));
+            if (
+                inside(
+                    $island->{worldX} - ($island->{islandHeight} / 2),
+                    $island->{worldY} - ($island->{islandHeight} / 2),
+                    $island->{worldX} + ($island->{islandHeight} / 2),
+                    $island->{worldY} + ($island->{islandHeight} / 2),
+                    $coords[0],
+                    $coords[1],
+                )
+              )
+            {
+                $key_islandID{ $island->{id} }->{maps} =  $rawData{$grid}{"Maps"}{$key} ;
+            }   
+        }
+
+        foreach my $key (keys %{ $rawData{$grid}{"Meshes"} } ) {
+            my @coords = GPSToWorld(split(/:/, $key));
+            if (
+                inside(
+                    $island->{worldX} - ($island->{islandHeight} / 2),
+                    $island->{worldY} - ($island->{islandHeight} / 2),
+                    $island->{worldX} + ($island->{islandHeight} / 2),
+                    $island->{worldY} + ($island->{islandHeight} / 2),
+                    $coords[0],
+                    $coords[1],
+                )
+              )
+            {
+                $key_islandID{ $island->{id} }->{meshes} =  $rawData{$grid}{"Meshes"}{$key} ;
+            }   
+        }
+
         foreach my $disco ( @{ $server->{'discoZones'} } ) {
             if (
                 $disco->{bIsManuallyPlaced} == JSON::PP::false &&
@@ -108,7 +140,7 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
                 )
               )
             {
-                my @coords = WorldToGPS($disco->{worldX}, $disco->{worldY});
+                my @coords = worldToGPS($disco->{worldX}, $disco->{worldY});
                 push @{ $key_islandID{ $island->{id} }->{discoveries} }, 
                 { 
                     name => $disco->{name}, 
@@ -117,8 +149,8 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
                 };
             }
 
-            if ($overrides{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}) {
-                my @gps = @{$overrides{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}};
+            if ($rawData{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}) {
+                my @gps = @{$rawData{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}};
                 my @coords = GPSToWorld(@gps);
                 if (
                     inside(
@@ -134,8 +166,8 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
                     push @{ $key_islandID{ $island->{id} }->{discoveries} }, 
                     { 
                         name => $disco->{name}, 
-                        long => $overrides{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}[0], 
-                        lat => $overrides{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}[1], 
+                        long => $rawData{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}[0], 
+                        lat => $rawData{$grid}{"Discoveries"}{$disco->{ManualVolumeName}}[1], 
                     };
                 }
             }
@@ -161,9 +193,7 @@ foreach $server ( @{ $serverConfig->{'servers'} } ) {
         @{ $key_islandID{ $sublevel->{id} }->{animals} } =
           uniq  @{ $key_islandID{ $sublevel->{id} }->{animals} };
     }
-
 }
-
 
 my %key_grid, %island_grid;
 foreach my $island (keys %key_islandID)
@@ -193,6 +223,7 @@ jsonOut(\%key_grid, "gridList.json");
 jsonOut(\%island_grid, "islandList.json");
 jsonOut($serverConfig->{'shipPaths'}, "shipPaths.json");
 jsonOut(\@stones, "stones.json");
+jsonOut(\@bosses, "bosses.json");
 
 sub jsonOut {
     local ( $data, $filename ) = @_;
@@ -212,4 +243,18 @@ sub inside {
         return 1;
     }
     return 0;
+}
+
+sub worldToGPS {
+  my ($x, $y) = @_;
+  my $long = (($x / $worldUnits) * 200) - 100;
+  my $lat = 100 - (($y / $worldUnits) * 200);
+  return ($long,$lat);
+}
+
+sub GPSToWorld {
+  my ($x, $y) = @_;
+  my $long = ( ( $x + 100 ) / 200 ) * $worldUnits;
+  my $lat =  ( (-$y + 100 ) / 200  ) * $worldUnits;
+  return ($long,$lat);
 }

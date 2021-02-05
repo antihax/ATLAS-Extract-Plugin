@@ -10,6 +10,12 @@
 #pragma comment(lib, "AtlasApi.lib")
 
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*);
+DECLARE_HOOK(AShooterGameMode_InitOptions, void, AShooterGameMode*, FString);
+
+DECLARE_HOOK(AShooterGameMode_InitOptionString, void, AShooterGameMode*, FString, FString, FString);
+DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FString, FString, FString, int);
+DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
+DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
 
 static const std::string ServerGrid() {
 	// Get server grid 
@@ -80,6 +86,7 @@ FString fixName(FString name) {
 void dumpCraftables() {
 	nlohmann::json json;
 	json["Craftables"] = nullptr;
+	Log::GetLog()->info("Dump Craftables");
 
 	// Get all blueprint crafting requirements
 	TArray<UObject*> types;
@@ -112,6 +119,28 @@ void dumpCraftables() {
 	file.close();
 }
 
+void dumpStructures() {
+	nlohmann::json json;
+	json["Structures"] = nullptr;
+	Log::GetLog()->info("Dump Structures");
+	// Get all blueprint crafting requirements
+	TArray<UObject*> types;
+	Globals::GetObjectsOfClass(APrimalStructure::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+	for (auto object : types) {
+		auto n = static_cast<APrimalStructure*> (object);
+		FString name;
+		n->NameField().ToString(&name);
+		if (n->DecayDestructionPeriodMultiplierField() > 1.0f ) {
+			json["Structures"][name.ToString()]["DecayMultiplier"] = n->DecayDestructionPeriodMultiplierField();
+		}
+	}
+	std::filesystem::create_directory("resources");
+	std::ofstream file("resources/structures.json");
+	file << json;
+	file.flush();
+	file.close();
+}
+
 
 nlohmann::json getDiscoveries(UWorld* World) {
 	nlohmann::json json;
@@ -124,6 +153,20 @@ nlohmann::json getDiscoveries(UWorld* World) {
 		json["Discoveries"][dz->VolumeName().ToString()] = { gps.X, gps.Y };
 	}
 	return json;
+}
+
+void dumpLootTables() {
+	Log::GetLog()->info("Dump Loot Tables");
+	TArray<UObject*> objects;
+	Globals::GetObjectsOfClass(UPrimalSupplyCrateItemSets::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
+	for (auto object : objects) {
+		Log::GetLog()->info("loot set found ");
+		auto n = static_cast<UPrimalSupplyCrateItemSets*> (object);
+		for (auto table : n->ItemSetsField()) {
+			Log::GetLog()->info("loot set {} ", table.SetName.ToString());
+		}
+
+	}
 }
 
 // Build map of harvestable classes
@@ -169,6 +212,8 @@ void extract() {
 
 	// Save craftables.
 	dumpCraftables();
+	//dumpStructures();
+	dumpLootTables();
 	
 	// Get discovery Zones
 	json["Discoveries"] = getDiscoveries(World);
@@ -415,17 +460,46 @@ void extract() {
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
 	extract();
-
 	exit(0);
+}
+
+void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
+	AShooterGameMode_InitOptions_original(This, Options);
+}
+
+void Hook_AShooterGameMode_InitOptionString(AShooterGameMode* This, FString CommandLine, FString Section, FString Option) {
+	AShooterGameMode_InitOptionString_original(This, CommandLine, Section, Option);
+}
+
+void Hook_AShooterGameMode_InitOptionInteger(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, int CurrentValue) {
+	AShooterGameMode_InitOptionInteger_original(This, CommandLine, Section, Option, CurrentValue);
+}
+
+void Hook_AShooterGameMode_InitOptionFloat(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, float CurrentValue) {
+	AShooterGameMode_InitOptionFloat_original(This, CommandLine, Section, Option, CurrentValue);
+}
+
+void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, bool CurrentValue) {
+	AShooterGameMode_InitOptionBool_original(This, CommandLine, Section, Option, CurrentValue);
 }
 
 void Load() {
 	Log::Get().Init("DumpResources");
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
+	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions, &AShooterGameMode_InitOptions_original);
+	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString, &AShooterGameMode_InitOptionString_original);
+	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger, &AShooterGameMode_InitOptionInteger_original);
+	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat, &AShooterGameMode_InitOptionFloat_original);
+	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool, &AShooterGameMode_InitOptionBool_original);
 }
 
 void Unload() {
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay);
+	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions);
+	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString);
+	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger);
+	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat);
+	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool);
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {
