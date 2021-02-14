@@ -460,7 +460,7 @@ void extract() {
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
 	extract();
-	exit(0);
+	//exit(0);
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {

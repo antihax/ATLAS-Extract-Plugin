@@ -1,0 +1,1 @@
+This plugin forces bUseNewStructureFoundationSupportChecks = false

@@ -1,0 +1,18 @@
+{
+  "structures": [
+    "UShooterGameInstance",
+    "AShooterGameMode",
+    "ANPCZoneManager",
+    "ADiscoveryZone",
+    "ABiomeZoneVolume",
+    "UInstancedStaticMeshComponent",
+    "ASupplyCrateSpawningVolume",
+    "AFoliageAttachmentOverrideVolume",
+    "UPrimalHarvestingComponent",
+    "UPrimalItem",
+    "UObject",
+    "AActor",
+    "FVector"
+  ],
+  "functions": ["GetObjectsOfClass"]
+}
