@@ -18,11 +18,14 @@ void Unload() {
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This) {
 	AShooterGameMode_BeginPlay_original(This);
 	Log::GetLog()->info("bUseNewStructureFoundationSupportChecks = {}", This->bUseNewStructureFoundationSupportChecksField());
+	Log::GetLog()->info("bAllowUnlimitedRespecs = {}", This->bAllowUnlimitedRespecsField());
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
-	This->bUseNewStructureFoundationSupportChecksField() = false;
 	AShooterGameMode_InitOptions_original(This, Options);
+
+	This->bUseNewStructureFoundationSupportChecksField() = false;
+	This->bAllowUnlimitedRespecsField() = true;
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {
