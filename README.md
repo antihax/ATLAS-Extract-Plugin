@@ -4,3 +4,6 @@
 
 # ATLAS-Extract-Plugin
 Plugin for ATLAS dedicated server to extract resources, bosses, and other imporant data.
+
+Run `prereq.bat` to install the server, plugins, and configuration.
+Install your servergrid.json file to `DumpResources\server\ShooterGame`

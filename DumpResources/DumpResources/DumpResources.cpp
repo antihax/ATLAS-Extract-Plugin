@@ -9,7 +9,7 @@
 
 #pragma comment(lib, "AtlasApi.lib")
 
-DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*);
+DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(AShooterGameMode_InitOptions, void, AShooterGameMode*, FString);
 
 DECLARE_HOOK(AShooterGameMode_InitOptionString, void, AShooterGameMode*, FString, FString, FString);
@@ -83,6 +83,7 @@ FString fixName(FString name) {
 	return name;
 }
 
+
 void dumpCraftables() {
 	nlohmann::json json;
 	json["Craftables"] = nullptr;
@@ -130,7 +131,7 @@ void dumpStructures() {
 		auto n = static_cast<APrimalStructure*> (object);
 		FString name;
 		n->NameField().ToString(&name);
-		if (n->DecayDestructionPeriodMultiplierField() > 1.0f ) {
+		if (n->DecayDestructionPeriodMultiplierField() > 1.0f) {
 			json["Structures"][name.ToString()]["DecayMultiplier"] = n->DecayDestructionPeriodMultiplierField();
 		}
 	}
@@ -140,7 +141,6 @@ void dumpStructures() {
 	file.flush();
 	file.close();
 }
-
 
 nlohmann::json getDiscoveries(UWorld* World) {
 	nlohmann::json json;
@@ -165,7 +165,6 @@ void dumpLootTables() {
 		for (auto table : n->ItemSetsField()) {
 			Log::GetLog()->info("loot set {} ", table.SetName.ToString());
 		}
-
 	}
 }
 
@@ -206,18 +205,80 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 	return harvestableClasses;
 }
 
-void extract() {
+void dumpAnimals() {
+	nlohmann::json json;
+	json["Animals"] = nullptr;
+	Log::GetLog()->info("Dump Animals");
+	auto harvestableClasses = getHarvestableClasses();
+
+	TArray<UObject*> types;
+	Globals::GetObjectsOfClass(APrimalDinoCharacter::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+	for (auto object : types) {
+		auto n = static_cast<APrimalDinoCharacter*> (object);
+		if (!n)
+			continue;
+		FString name;
+		n->NameField().ToString(&name);
+		if (name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
+			continue;
+
+		Log::GetLog()->info("animal {} {} {} {}", name.ToString(), n->DescriptiveNameField().ToString(), n->CorpseLifespanField(), n->KillXPBaseField());
+		for (auto b : n->MatingRequiresBiomeTagsField()) {
+			FString bname;
+			b.ToString(&bname);
+			Log::GetLog()->info("	Biome {} ", bname.ToString());
+			json["Animals"][name.ToString()]["breedingBiomes"].push_back(bname.ToString());
+		}
+		json["Animals"][name.ToString()]["minTemperatureToBreed"] = n->MinTemperatureToBreedField();
+		json["Animals"][name.ToString()]["maxTemperatureToBreed"] = n->MaxTemperatureToBreedField();
+
+		
+		/*	auto harvest = harvestableClasses[n->DeathHarvestingComponentField().uClass];
+		for (auto a : harvest) {
+			Log::GetLog()->info("	Harvest {} ",a);
+		}
+		if (n->DeathHarvestingComponentField().uClass) {
+			auto harv = static_cast<UPrimalHarvestingComponent*>(n->DeathHarvestingComponentField().uClass->GetDefaultObject(true));
+			if (!harv)
+				continue;
+
+			for (auto r : harv->HarvestResourceEntries()) {
+				TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
+				if (hcSub.uClass) {
+					if (hcSub.uClass->ClassDefaultObjectField()) {
+						auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
+						FString type;
+						pi->GetItemName(&type, false, false, NULL);
+						Log::GetLog()->info("	Harvest {} ", type.ToString());
+					}
+				}
+			}
+		}*/
+	}
+
+	std::ofstream file("resources/animals.json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
+
+}
+void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
 	nlohmann::json json;
 
 	// Save craftables.
 	dumpCraftables();
-	//dumpStructures();
+	dumpStructures();
 	dumpLootTables();
-	
+	dumpAnimals();
+
 	// Get discovery Zones
 	json["Discoveries"] = getDiscoveries(World);
-	
+	const auto grid = static_cast<UShooterGameInstance*> (World->OwningGameInstanceField())->GridInfoField();
+	const auto server = grid->GetCurrentServerInfo();
+
+	//Log::GetLog()->info("Server Name {} {}", grid->WorldFriendlyNameField().ToString(), server->NameField().ToString());
+
 	TArray<AActor*> found_actors;
 
 	// Loop all actors first time to find overrides and things we are interested in
@@ -226,7 +287,28 @@ void extract() {
 	for (auto actor : found_actors) {
 		FString name;
 		actor->GetFullName(&name, NULL);
+		if (name.Contains("Biome")) {
+			auto gps = ActorGPS(actor);
+			auto biome = static_cast<ABiomeZoneVolume*> (actor);
+			biome->BeginPlay();
+			FString biomeName;
+			biome->GetBiomeZoneName(&biomeName, NULL);
 
+			char buff[200];
+			snprintf(buff, sizeof(buff), "%.2f:%.2f", gps.X, gps.Y);
+			std::string key = buff;
+			json["Biomes"][key] = {
+				{ "name", biomeName.ToString() },
+				{ "gps", {gps.X, gps.Y}},
+				{ "temp", {biome->AbsoluteMinTemperature(), biome->AbsoluteMaxTemperature()}},
+			};
+
+			for (auto x : biome->BiomeZoneTags()) {
+				FString biomeTag;
+				x.ToString(&biomeTag);
+				json["Biomes"][key]["tags"].push_back(biomeTag.ToString());
+			}
+		}
 		// BOSSES
 		// Look for boss managers & entries
 		if (name.Contains("CreatureSpawnEntries_Boss")) {
@@ -248,7 +330,8 @@ void extract() {
 				json["Boss"][boss.ToString()].push_back({ gps.X, gps.Y });
 			}
 			continue;
-		} else if (name.Contains("OceanEpicNPCZoneManager")) {
+		}
+		else if (name.Contains("OceanEpicNPCZoneManager")) {
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
 				int count = 0;
@@ -274,7 +357,8 @@ void extract() {
 				}
 			}
 			continue;
-		} else if (name.Contains("SnowCaveBossManager")) {
+		}
+		else if (name.Contains("SnowCaveBossManager")) {
 			auto gps = ActorGPS(actor);
 			json["Boss"]["Yeti"] = nlohmann::json::array();
 			json["Boss"]["Yeti"].push_back({ gps.X, gps.Y });
@@ -302,10 +386,10 @@ void extract() {
 		if (name.Contains("FoliageOverride")) {
 			std::string island = GetIslandName(name.ToString());
 			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
-			for (auto oxr : dz->FoliageAttachmentOverrides()) {
+			for (auto o : dz->FoliageAttachmentOverrides()) {
 				FString name;
-				oxr.ForFoliageTypeName.ToString(&name);
-				OverrideClasses[island + "_" + name.ToString()] = oxr.OverrideActorComponent.uClass;
+				o.ForFoliageTypeName.ToString(&name);
+				OverrideClasses[island + "_" + name.ToString()] = o.OverrideActorComponent.uClass;
 			}
 		}
 	}
@@ -395,8 +479,6 @@ void extract() {
 
 		if (
 			name.Contains("HierarchicalInstancedStaticMeshActor") &&
-			!name.Contains("Rock") &&
-			!name.Contains("Boulder") &&
 			!name.Contains("Capture_Point")
 			) {
 			auto loc = ActorGPS(actor);
@@ -420,8 +502,10 @@ void extract() {
 			char buff[200];
 			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 			std::string key = buff;
-			resources[key]["Maps"] = sc->MaxNumCratesField();
-			Log::GetLog()->info("{} ", key);
+
+			sc->BeginPlay(a2);
+			resources[key]["Maps"] += sc->MaxNumCratesField();
+
 			for (auto se : sc->LinkedSupplyCrateEntriesField()) {
 				maps[key].push_back({ se.EntryWeight, se.OverrideCrateValues.RandomQualityMultiplierMin, se.OverrideCrateValues.RandomQualityMultiplierMax, se.OverrideCrateValues.RandomQualityMultiplierPower });
 			}
@@ -457,10 +541,13 @@ void extract() {
 	file.close();
 }
 
-void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode) {
-	AShooterGameMode_BeginPlay_original(a_shooter_game_mode);
-	extract();
-	//exit(0);
+void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, float a2) {
+	std::filesystem::create_directory("resources");
+	AShooterGameMode_BeginPlay_original(a_shooter_game_mode, a2);
+
+
+	extract(a2);
+	exit(0);
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
