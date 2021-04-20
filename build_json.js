@@ -75,9 +75,6 @@ for (let server in serverConfig.servers) {
     i.biomes = [];
     i.discoveries = [];
 
-    if (i.treasureMapSpawnPoints && i.treasureMapSpawnPoints.length > 0)
-      i.resources["Treasure Spawns"] = i.treasureMapSpawnPoints.length;
-
     // build resource map
     for (let r in grids[grid].Resources) {
       if (inside(i, r.split(":")))
