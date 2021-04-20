@@ -83,6 +83,23 @@ FString fixName(FString name) {
 	return name;
 }
 
+// Remove things we do not care about.
+FString fixNPCName(FString npcname) {
+	npcname = npcname.Replace(L"Default__", L"");
+	npcname = npcname.Replace(L"_Character_BP_Trench", L"");
+	npcname = npcname.Replace(L"_Character_BP_Cave", L"");
+	npcname = npcname.Replace(L"_Character_BP_C", L"");
+	npcname = npcname.Replace(L"FreshwaterFish_", L"");
+	npcname = npcname.Replace(L"SaltwaterFish_", L"");
+	npcname = npcname.Replace(L"Wild", L"");
+	npcname = npcname.Replace(L"Atlas", L"");
+	npcname = npcname.Replace(L"GiantSnake", L"Cobra");
+	npcname = npcname.Replace(L"Giant", L"");
+	npcname = npcname.Replace(L"hild_C", L"");
+	npcname = npcname.Replace(L"_C", L"");
+	npcname = npcname.TrimStartAndEnd();
+	return npcname;
+}
 
 void dumpCraftables() {
 	nlohmann::json json;
@@ -150,7 +167,7 @@ nlohmann::json getDiscoveries(UWorld* World) {
 	for (auto actor : found_actors) {
 		auto dz = static_cast<ADiscoveryZone*> (actor);
 		auto gps = ActorGPS(dz);
-		json["Discoveries"][dz->VolumeName().ToString()] = { gps.X, gps.Y };
+		json[dz->VolumeName().ToString()] = { gps.X, gps.Y };
 	}
 	return json;
 }
@@ -222,17 +239,16 @@ void dumpAnimals() {
 		if (name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
 			continue;
 
-		Log::GetLog()->info("animal {} {} {} {}", name.ToString(), n->DescriptiveNameField().ToString(), n->CorpseLifespanField(), n->KillXPBaseField());
+		//Log::GetLog()->info("animal {} {} {} {}", name.ToString(), n->DescriptiveNameField().ToString(), n->CorpseLifespanField(), n->KillXPBaseField());
 		for (auto b : n->MatingRequiresBiomeTagsField()) {
 			FString bname;
 			b.ToString(&bname);
-			Log::GetLog()->info("	Biome {} ", bname.ToString());
 			json["Animals"][name.ToString()]["breedingBiomes"].push_back(bname.ToString());
 		}
 		json["Animals"][name.ToString()]["minTemperatureToBreed"] = n->MinTemperatureToBreedField();
 		json["Animals"][name.ToString()]["maxTemperatureToBreed"] = n->MaxTemperatureToBreedField();
 
-		
+
 		/*	auto harvest = harvestableClasses[n->DeathHarvestingComponentField().uClass];
 		for (auto a : harvest) {
 			Log::GetLog()->info("	Harvest {} ",a);
@@ -266,6 +282,7 @@ void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
 	nlohmann::json json;
 
+	Log::GetLog()->info("Server Grid {} ", ServerGrid());
 	// Save craftables.
 	dumpCraftables();
 	dumpStructures();
@@ -306,9 +323,77 @@ void extract(float a2) {
 			for (auto x : biome->BiomeZoneTags()) {
 				FString biomeTag;
 				x.ToString(&biomeTag);
+				//Log::GetLog()->info("	Biome {} ", biomeTag.ToString());
 				json["Biomes"][key]["tags"].push_back(biomeTag.ToString());
 			}
 		}
+
+		if (name.Contains("CreatureSpawnEntries")) {
+			// Some islands have remapped bosses, so get the container name instead.
+			auto zm = static_cast<ANPCZoneManager*> (actor);
+			auto type = static_cast<UNPCSpawnEntriesContainer*> (zm->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
+
+			char buff[200];
+			nlohmann::json locations;
+			bool found;
+			for (auto spawnVolume : zm->LinkedZoneSpawnVolumeEntriesField()) {
+				if (spawnVolume.LinkedZoneSpawnVolume) {
+					found = true;
+					auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
+					snprintf(buff, sizeof(buff), "%.2f:%.2f", gps.X, gps.Y);
+					locations.push_back({ gps.X, gps.Y });
+				}
+			}
+			if (!found)
+				continue;
+
+			for (auto npc : type->NPCSpawnEntriesField()) {
+				int num = 0;
+				nlohmann::json animals;
+				for (auto entryClass : npc.NPCsToSpawn) {
+					auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
+					FString npcname;
+					e->NameField().ToString(&npcname);
+					if (npcname.Contains("HumanNPC"))
+						continue;
+
+					npcname = fixNPCName(npcname);
+					//Log::GetLog()->info("animal {}", npcname.ToString());
+					nlohmann::json animal;
+					animal["name"] = npcname.ToString();
+
+					if (npc.NPCMinLevelOffset.Num() > num)
+						animal["minLevelOffset"] = npc.NPCMinLevelOffset[num];
+					if (npc.NPCMinLevelOffset.Num() > num)
+						animal["maxLevelOffset"] = npc.NPCMaxLevelOffset[num];
+					if (npc.NPCMinLevelMultiplier.Num() > num)
+						animal["minLevelMultiplier"] = npc.NPCMinLevelMultiplier[num];
+					if (npc.NPCMaxLevelMultiplier.Num() > num)
+						animal["maxLevelMultiplier"] = npc.NPCMaxLevelMultiplier[num];
+					if (npc.NPCsToSpawnPercentageChance.Num() > num && npc.NPCsToSpawnPercentageChance[num] != 1.0f)
+						animal["spawnChance"] = npc.NPCsToSpawnPercentageChance[num];
+					if (npc.NPCOverrideLevel.Num() > num)
+						animal["overrideLevel"] = (int)npc.NPCOverrideLevel[num];
+
+					animals.push_back(animal);
+					num++;
+				}
+
+				json["Animals"][buff].push_back({
+					{ "gps", locations },
+					{ "spawnLimits", {zm->MinDesiredNumberOfNPCField(), zm->AbsoluteMaxNumberOfNPCField(), zm->DesiredNumberOfNPCMultiplierField() } },
+					{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
+					{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
+					{ "levelMultiplier", zm->NPCLevelMultiplierField() },
+					{ "levelMinOveride", zm->ForceOverrideNPCBaseLevelField() },
+					{ "islandLevelMultiplier", zm->IslandFinalNPCLevelMultiplierField() },
+					{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
+					{ "animals", animals },
+					});
+
+			}
+		}
+
 		// BOSSES
 		// Look for boss managers & entries
 		if (name.Contains("CreatureSpawnEntries_Boss")) {
@@ -536,7 +621,7 @@ void extract(float a2) {
 
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/" + ServerGrid() + ".json");
-	file << json;
+	file << json.dump(-1, ' ', false, nlohmann::json::error_handler_t::ignore);
 	file.flush();
 	file.close();
 }
@@ -544,7 +629,6 @@ void extract(float a2) {
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, float a2) {
 	std::filesystem::create_directory("resources");
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode, a2);
-
 
 	extract(a2);
 	exit(0);
