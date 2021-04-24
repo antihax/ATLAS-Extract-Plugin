@@ -6,4 +6,6 @@
 Plugin for ATLAS dedicated server to extract resources, bosses, and other imporant data.
 
 Run `prereq.bat` to install the server, plugins, and configuration.
-Install your servergrid.json file to `DumpResources\server\ShooterGame`
+Install your servergrid.json file to `DumpResources\server\ShooterGame`.
+
+Run `build_json.js` and once all grids are processed the output will be in `./json`.
