@@ -51,8 +51,10 @@ for (let x = 0; x < xGrids; x++) {
   }
 }
 let animalcheck = new Set();
+let allassets = new Set();
 // match data to island instances
 let islands = {};
+let islandExtended = {};
 let gridList = {};
 let islandList = {};
 for (let server in serverConfig.servers) {
@@ -139,11 +141,6 @@ for (let server in serverConfig.servers) {
         i.maps = grids[grid].Maps[r];
     }
 
-    for (let r in grids[grid].Meshes) {
-      if (inside(i, r.split(":")))
-        i.meshes = grids[grid].Meshes[r];
-    }
-
     for (let r in s.discoZones) {
       let disco = s.discoZones[r];
       let d = grids[grid].Discoveries[disco.ManualVolumeName];
@@ -174,7 +171,28 @@ for (let server in serverConfig.servers) {
     }
     i.biomes = Array.from(biomes).sort();
     i.biomeTags = Array.from(biomeTags).sort();
+
+    islandExtended[i.id] = clone(i);
+    i = islandExtended[i.id];
+    for (let r in grids[grid].Meshes) {
+      if (inside(i, r.split(":")))
+        i.meshes = grids[grid].Meshes[r];
+    }
+    // build resource map
+    i.assets = {};
+    for (let r in grids[grid].Assets) {
+      if (inside(i, r.split(":")))
+        for (let key in grids[grid].Assets[r]) {
+          if (!i.assets[key]) {
+            allassets.add(key);
+            i.assets[key] = grids[grid].Assets[r][key];
+          } else {
+            i.assets[key] += grids[grid].Assets[r][key];
+          }
+        }
+    }
   }
+
   gridList[grid].biomes = Array.from(gridBiomes).sort();
   gridList[grid].animals = Array.from(gridAnimals).sort();
   gridList[grid].resources = Array.from(gridResources).sort();
@@ -194,9 +212,11 @@ fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjB
   GridSize: serverConfig.gridSize,
 }), null, "\t"));
 
+fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, "\t"));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
 fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), null, "\t"));
+fs.writeFileSync('./json/islandExtended.json', JSON.stringify(sortObjByKey(islandExtended), null, "\t"));
 fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), null, "\t"));
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
 
@@ -210,6 +230,15 @@ function GPSToWorld(x, y) {
   let long = ((x + 100) / 200) * worldUnitsX;
   let lat = ((-y + 100) / 200) * worldUnitsY;
   return [long, lat];
+}
+
+function clone(obj) {
+  if (null == obj || "object" != typeof obj) return obj;
+  var copy = obj.constructor();
+  for (var attr in obj) {
+    if (obj.hasOwnProperty(attr)) copy[attr] = obj[attr];
+  }
+  return copy;
 }
 
 function inside(i, c) {

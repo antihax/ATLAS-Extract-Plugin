@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <API/Atlas/Atlas.h>
 #include <unordered_map>
 #include <regex>
@@ -222,6 +223,13 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 	return harvestableClasses;
 }
 
+//static_cast<const void*>(this);
+std::string stringrepresentation(const void* address) {
+	std::stringstream ss;
+	ss << address;
+	return ss.str();
+}
+
 void dumpAnimals() {
 	nlohmann::json json;
 	json["Animals"] = nullptr;
@@ -239,7 +247,6 @@ void dumpAnimals() {
 		if (name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
 			continue;
 
-		//Log::GetLog()->info("animal {} {} {} {}", name.ToString(), n->DescriptiveNameField().ToString(), n->CorpseLifespanField(), n->KillXPBaseField());
 		for (auto b : n->MatingRequiresBiomeTagsField()) {
 			FString bname;
 			b.ToString(&bname);
@@ -497,6 +504,9 @@ void extract(float a2) {
 		object->GetPathName(&name, NULL);
 		if (n) {
 			auto u = n->FoliageTypeReferenceField();
+			if (u)
+				u->NameField().ToString(&name);
+
 			auto level = n->GetComponentLevel();
 			// Get the override key
 			FString lvlname;
@@ -515,9 +525,6 @@ void extract(float a2) {
 				FVector vec;
 				n->GetWorldLocation(&vec);
 				const FVector2D loc = VectorGPS(vec);
-
-
-
 				auto count = n->GetInstanceCount();
 				// Don't add 0 counts
 				if (count > 0) {
