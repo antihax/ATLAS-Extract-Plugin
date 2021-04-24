@@ -9,6 +9,7 @@
     "AShooterGameMode",
     "ADiscoveryZone",
     "UInstancedStaticMeshComponent",
+    "UNPCSpawnEntriesContainer",
     "ASupplyCrateSpawningVolume",
     "AFoliageAttachmentOverrideVolume",
     "UPrimalHarvestingComponent",
