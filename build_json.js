@@ -64,21 +64,41 @@ for (let server in serverConfig.servers) {
   gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
   gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
   gridList[grid].serverIslandPointsMultiplier = s.serverIslandPointsMultiplier;
+  gridList[grid].biomes = new Set();
+
 
   for (let island in s.islandInstances) {
-    let i = s.islandInstances[island];
+    let cp = s.islandInstances[island];
+    let i = {
+      id: cp.id,
+      worldX: cp.worldX,
+      worldY: cp.worldY,
+      rotation: cp.rotation,
+      name: cp.name,
+      islandWidth: cp.islandWidth,
+      islandHeight: cp.islandHeight,
+      isControlPoint: cp.isControlPoint,
+    };
+
     islands[i.id] = i;
 
     i.grid = grid;
     i.homeServer = s.isHomeServer ? true : false;
     i.resources = {};
-    i.biomes = [];
     i.discoveries = [];
+
+    gridBiomes = new Set();
+    gridAnimals = new Set();
+    gridResources = new Set();
+
+    if (i.treasureMapSpawnPoints && i.treasureMapSpawnPoints.length > 0)
+      i.resources["Treasure Spawns"] = i.treasureMapSpawnPoints.length;
 
     // build resource map
     for (let r in grids[grid].Resources) {
       if (inside(i, r.split(":")))
         for (let key in grids[grid].Resources[r]) {
+          gridResources.add(key);
           if (!i.resources[key])
             i.resources[key] = grids[grid].Resources[r][key];
           else
@@ -92,7 +112,6 @@ for (let server in serverConfig.servers) {
       if (inside(i, r.split(":")))
         for (let key in grids[grid].Animals[r]) {
           let animalList = grids[grid].Animals[r][key];
-
           if (process.argv.includes("debug"))
             if (
               animalList.levelOffset < 60 &&
@@ -102,6 +121,7 @@ for (let server in serverConfig.servers) {
 
           for (let a in animalList.animals) {
             let animal = animalList.animals[a]
+            gridAnimals.add(animal.name);
             allanimals.add(animal.name);
             animalcheck.add(animal.name);
 
@@ -150,10 +170,14 @@ for (let server in serverConfig.servers) {
     for (let r in grids[grid].Biomes) {
       if (inside(i, r.split(":")))
         biomes.add(grids[grid].Biomes[r]);
+      gridBiomes.add(grids[grid].Biomes[r].name);
     }
     i.biomes = Array.from(biomes).sort();
     i.biomeTags = Array.from(biomeTags).sort();
   }
+  gridList[grid].biomes = Array.from(gridBiomes).sort();
+  gridList[grid].animals = Array.from(gridAnimals).sort();
+  gridList[grid].resources = Array.from(gridResources).sort();
 }
 
 if (process.argv.includes("debug"))
@@ -164,9 +188,16 @@ if (process.argv.includes("debug"))
 //stop();
 
 // save everything
+fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjByKey({
+  ServersX: serverConfig.totalGridsX,
+  ServersY: serverConfig.totalGridsY,
+  GridSize: serverConfig.gridSize,
+}), null, "\t"));
+
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
 fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), null, "\t"));
+fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), null, "\t"));
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
 
 function worldToGPS(x, y) {
