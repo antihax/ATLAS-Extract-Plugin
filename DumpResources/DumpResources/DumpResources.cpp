@@ -196,7 +196,7 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 		n->GetFullName(&name, NULL);
 
 		// Find all the resources provided by the component
-		for (auto r : n->HarvestResourceEntries()) {
+		for (auto r : n->HarvestResourceEntriesField()) {
 			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
 			if (hcSub.uClass) {
 				if (hcSub.uClass->ClassDefaultObjectField()) {
@@ -390,7 +390,6 @@ void extract(float a2) {
 					{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
 					{ "animals", animals },
 					});
-
 			}
 		}
 
@@ -483,6 +482,7 @@ void extract(float a2) {
 	// Find actual resources, maps, and meshes
 	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses = getHarvestableClasses();
 	std::unordered_map<std::string, std::unordered_map<std::string, int>> resources;
+	std::unordered_map<std::string, std::unordered_map<std::string, int>> assets;
 	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
 	std::unordered_map<std::string, std::vector<std::string>> meshes;
 
@@ -496,10 +496,7 @@ void extract(float a2) {
 		FString name;
 		object->GetPathName(&name, NULL);
 		if (n) {
-			auto u = n->FoliageTypeReference();
-			if (u)
-				u->NameField().ToString(&name);
-
+			auto u = n->FoliageTypeReferenceField();
 			auto level = n->GetComponentLevel();
 			// Get the override key
 			FString lvlname;
@@ -508,7 +505,7 @@ void extract(float a2) {
 			std::string overrideSettings = island + "_" + name.ToString();
 
 			// Get the base and override with any applicable resources
-			auto nSub = n->AttachedComponentClass().uClass;
+			auto nSub = n->AttachedComponentClassField().uClass;
 			if (OverrideClasses.find(overrideSettings) != OverrideClasses.end()) {
 				nSub = OverrideClasses[overrideSettings];
 			}
@@ -519,6 +516,8 @@ void extract(float a2) {
 				n->GetWorldLocation(&vec);
 				const FVector2D loc = VectorGPS(vec);
 
+
+
 				auto count = n->GetInstanceCount();
 				// Don't add 0 counts
 				if (count > 0) {
@@ -526,13 +525,27 @@ void extract(float a2) {
 					auto rs = harvestableClasses[nSub];
 					std::string nodes = std::accumulate(std::begin(rs), std::end(rs), std::string(), [](std::string& ss, std::string& s) { return ss.empty() ? s : ss + ", " + s; });
 
+					// map key
+					char buff[200];
+					snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+					std::string key = buff;
+
+					// find asset names
+					if (u) {
+						u->NameField().ToString(&name);
+						FString assetName;
+						if (n->StaticMeshField()) {
+							n->StaticMeshField()->NameField().ToString(&assetName);
+							assets[key][assetName.ToString()] += count;
+						}
+					}
+
+					// count resources
 					for (auto r : rs) {
-						char buff[200];
-						snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
-						std::string key = buff;
 						resources[key][r] += count;
 					}
 
+					// save location of nodes
 					for (int i = 0; i < count; i++) {
 						FVector x;
 						n->GetPositionOfInstance(&x, i);
@@ -570,6 +583,7 @@ void extract(float a2) {
 			char buff[200];
 			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 			std::string key = buff;
+
 			meshes[key].push_back(name.Mid(name.Find(".") + 1).ToString());
 		}
 
@@ -600,12 +614,21 @@ void extract(float a2) {
 
 	// Add to the json object
 	json["Resources"] = nullptr;
+	json["Assets"] = nullptr;
 	json["Maps"] = nullptr;
 	json["Meshes"] = nullptr;
+
 	for (auto location : resources) {
 		json["Resources"][location.first] = nullptr;
 		for (auto resource : location.second) {
 			json["Resources"][location.first][resource.first] = resource.second;
+		}
+	}
+
+	for (auto location : assets) {
+		json["Assets"][location.first] = nullptr;
+		for (auto resource : location.second) {
+			json["Assets"][location.first][resource.first] = resource.second;
 		}
 	}
 
