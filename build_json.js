@@ -261,7 +261,6 @@ function inside(i, c) {
 }
 
 function insideNative(i, c) {
-
   let
     x1 = i.worldX - (i.islandHeight / 2),
     y1 = i.worldY - (i.islandWidth / 2),
@@ -278,7 +277,6 @@ function insideNative(i, c) {
   }
   return false;
 }
-
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

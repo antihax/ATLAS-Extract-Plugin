@@ -256,7 +256,7 @@ void dumpAnimals() {
 		json["Animals"][name.ToString()]["maxTemperatureToBreed"] = n->MaxTemperatureToBreedField();
 
 
-		/*	auto harvest = harvestableClasses[n->DeathHarvestingComponentField().uClass];
+			auto harvest = harvestableClasses[n->DeathHarvestingComponentField().uClass];
 		for (auto a : harvest) {
 			Log::GetLog()->info("	Harvest {} ",a);
 		}
@@ -265,18 +265,18 @@ void dumpAnimals() {
 			if (!harv)
 				continue;
 
-			for (auto r : harv->HarvestResourceEntries()) {
+			for (auto r : harv->HarvestResourceEntriesField()) {
 				TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
 				if (hcSub.uClass) {
 					if (hcSub.uClass->ClassDefaultObjectField()) {
 						auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
 						FString type;
 						pi->GetItemName(&type, false, false, NULL);
-						Log::GetLog()->info("	Harvest {} ", type.ToString());
+						json["Animals"][name.ToString()]["resources"].push_back(type.ToString());
 					}
 				}
 			}
-		}*/
+		}
 	}
 
 	std::ofstream file("resources/animals.json");
