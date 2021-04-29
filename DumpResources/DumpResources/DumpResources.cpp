@@ -234,7 +234,6 @@ void dumpAnimals() {
 	nlohmann::json json;
 	json["Animals"] = nullptr;
 	Log::GetLog()->info("Dump Animals");
-	auto harvestableClasses = getHarvestableClasses();
 
 	TArray<UObject*> types;
 	Globals::GetObjectsOfClass(APrimalDinoCharacter::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
@@ -244,8 +243,11 @@ void dumpAnimals() {
 			continue;
 		FString name;
 		n->NameField().ToString(&name);
-		if (name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
+
+		if (name.Contains("Default__Vulture") || name.Contains("Default__Sheep") || name.Contains("Default__Crab") || name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
 			continue;
+
+		name = fixNPCName(name);
 
 		for (auto b : n->MatingRequiresBiomeTagsField()) {
 			FString bname;
@@ -254,12 +256,31 @@ void dumpAnimals() {
 		}
 		json["Animals"][name.ToString()]["minTemperatureToBreed"] = n->MinTemperatureToBreedField();
 		json["Animals"][name.ToString()]["maxTemperatureToBreed"] = n->MaxTemperatureToBreedField();
+		json["Animals"][name.ToString()]["canBeTamed"] = n->bCanBeTamed().Get();
+		json["Animals"][name.ToString()]["tameConsumeInterval"] = n->WakingTameFeedIntervalField();
+		json["Animals"][name.ToString()]["deathInventoryChance"] = n->DeathInventoryChanceToUseField();
+		json["Animals"][name.ToString()]["babyGestationSpeed"] = n->BabyGestationSpeedField();
+		json["Animals"][name.ToString()]["babyGestationMultiplier"] = n->ExtraBabyGestationSpeedMultiplierField();
+		json["Animals"][name.ToString()]["babyTripletsChance"] = n->BabyChanceOfTripletsField();
+		json["Animals"][name.ToString()]["babyTwinsChance"] = n->BabyChanceOfTwinsField();
+		json["Animals"][name.ToString()]["requiredAffinity"] = n->RequiredTameAffinityField();
+		json["Animals"][name.ToString()]["requiredAffinityPerBaseLevel"] = n->RequiredTameAffinityPerBaseLevelField();
+		/*if (n->DinoSettingsClassField().uClass) {
+
+				Log::GetLog()->info("Server Grid {} ", stringrepresentation(n->DinoSettingsClassField().uClass));
+			auto dsc = static_cast<UPrimalDinoSettings*>(n->DinoSettingsClassField().uClass->GetDefaultObject(true));
+			if (dsc) {
+				for (auto food : dsc->FoodEffectivenessMultipliersField()) {
+
+				}
+			}
+		}*/
+
+		if (n->GetKillXP())
+			json["Animals"][name.ToString()]["XP"] = n->XPEarnMultiplierField() * n->KillXPBaseField();
+		json["Animals"][name.ToString()]["XPperHit"] = n->bGiveXPPerHit().Get();
 
 
-			auto harvest = harvestableClasses[n->DeathHarvestingComponentField().uClass];
-		for (auto a : harvest) {
-			Log::GetLog()->info("	Harvest {} ",a);
-		}
 		if (n->DeathHarvestingComponentField().uClass) {
 			auto harv = static_cast<UPrimalHarvestingComponent*>(n->DeathHarvestingComponentField().uClass->GetDefaultObject(true));
 			if (!harv)
@@ -283,8 +304,8 @@ void dumpAnimals() {
 	file << std::setw(4) << json;
 	file.flush();
 	file.close();
-
 }
+
 void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
 	nlohmann::json json;
@@ -336,7 +357,6 @@ void extract(float a2) {
 		}
 
 		if (name.Contains("CreatureSpawnEntries")) {
-			// Some islands have remapped bosses, so get the container name instead.
 			auto zm = static_cast<ANPCZoneManager*> (actor);
 			auto type = static_cast<UNPCSpawnEntriesContainer*> (zm->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
 
@@ -351,52 +371,51 @@ void extract(float a2) {
 					locations.push_back({ gps.X, gps.Y });
 				}
 			}
-			if (!found)
-				continue;
+			if (found) {
+				for (auto npc : type->NPCSpawnEntriesField()) {
+					int num = 0;
+					nlohmann::json animals;
+					for (auto entryClass : npc.NPCsToSpawn) {
+						auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
+						FString npcname;
+						e->NameField().ToString(&npcname);
+						if (npcname.Contains("HumanNPC"))
+							continue;
 
-			for (auto npc : type->NPCSpawnEntriesField()) {
-				int num = 0;
-				nlohmann::json animals;
-				for (auto entryClass : npc.NPCsToSpawn) {
-					auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
-					FString npcname;
-					e->NameField().ToString(&npcname);
-					if (npcname.Contains("HumanNPC"))
-						continue;
+						npcname = fixNPCName(npcname);
+						//Log::GetLog()->info("animal {}", npcname.ToString());
+						nlohmann::json animal;
+						animal["name"] = npcname.ToString();
 
-					npcname = fixNPCName(npcname);
-					//Log::GetLog()->info("animal {}", npcname.ToString());
-					nlohmann::json animal;
-					animal["name"] = npcname.ToString();
+						if (npc.NPCMinLevelOffset.Num() > num)
+							animal["minLevelOffset"] = npc.NPCMinLevelOffset[num];
+						if (npc.NPCMinLevelOffset.Num() > num)
+							animal["maxLevelOffset"] = npc.NPCMaxLevelOffset[num];
+						if (npc.NPCMinLevelMultiplier.Num() > num)
+							animal["minLevelMultiplier"] = npc.NPCMinLevelMultiplier[num];
+						if (npc.NPCMaxLevelMultiplier.Num() > num)
+							animal["maxLevelMultiplier"] = npc.NPCMaxLevelMultiplier[num];
+						if (npc.NPCsToSpawnPercentageChance.Num() > num && npc.NPCsToSpawnPercentageChance[num] != 1.0f)
+							animal["spawnChance"] = npc.NPCsToSpawnPercentageChance[num];
+						if (npc.NPCOverrideLevel.Num() > num)
+							animal["overrideLevel"] = (int)npc.NPCOverrideLevel[num];
 
-					if (npc.NPCMinLevelOffset.Num() > num)
-						animal["minLevelOffset"] = npc.NPCMinLevelOffset[num];
-					if (npc.NPCMinLevelOffset.Num() > num)
-						animal["maxLevelOffset"] = npc.NPCMaxLevelOffset[num];
-					if (npc.NPCMinLevelMultiplier.Num() > num)
-						animal["minLevelMultiplier"] = npc.NPCMinLevelMultiplier[num];
-					if (npc.NPCMaxLevelMultiplier.Num() > num)
-						animal["maxLevelMultiplier"] = npc.NPCMaxLevelMultiplier[num];
-					if (npc.NPCsToSpawnPercentageChance.Num() > num && npc.NPCsToSpawnPercentageChance[num] != 1.0f)
-						animal["spawnChance"] = npc.NPCsToSpawnPercentageChance[num];
-					if (npc.NPCOverrideLevel.Num() > num)
-						animal["overrideLevel"] = (int)npc.NPCOverrideLevel[num];
+						animals.push_back(animal);
+						num++;
+					}
 
-					animals.push_back(animal);
-					num++;
+					json["Animals"][buff].push_back({
+						{ "gps", locations },
+						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField(), zm->AbsoluteMaxNumberOfNPCField(), zm->DesiredNumberOfNPCMultiplierField() } },
+						{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
+						{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
+						{ "levelMultiplier", zm->NPCLevelMultiplierField() },
+						{ "levelMinOveride", zm->ForceOverrideNPCBaseLevelField() },
+						{ "islandLevelMultiplier", zm->IslandFinalNPCLevelMultiplierField() },
+						{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
+						{ "animals", animals },
+						});
 				}
-
-				json["Animals"][buff].push_back({
-					{ "gps", locations },
-					{ "spawnLimits", {zm->MinDesiredNumberOfNPCField(), zm->AbsoluteMaxNumberOfNPCField(), zm->DesiredNumberOfNPCMultiplierField() } },
-					{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
-					{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
-					{ "levelMultiplier", zm->NPCLevelMultiplierField() },
-					{ "levelMinOveride", zm->ForceOverrideNPCBaseLevelField() },
-					{ "islandLevelMultiplier", zm->IslandFinalNPCLevelMultiplierField() },
-					{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
-					{ "animals", animals },
-					});
 			}
 		}
 
@@ -422,13 +441,16 @@ void extract(float a2) {
 			}
 			continue;
 		}
-		else if (name.Contains("OceanEpicNPCZoneManager")) {
+		if (name.Contains("OceanEpicNPCZoneManager")) {
+			Log::GetLog()->info("Found ocean epic {}", name.ToString());
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
+				Log::GetLog()->info("Found dino epic {}", name.ToString());
 				int count = 0;
 				for (const auto npc : dino.NPCsToSpawn) {
 					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
 					type->GetFullName(&name, NULL);
+					Log::GetLog()->info("animal {}", name.ToString());
 					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
 
 					if (name.Contains("MeanWhale_SeaMonster")) {
@@ -494,6 +516,7 @@ void extract(float a2) {
 	std::unordered_map<std::string, std::vector<std::string>> meshes;
 
 	nlohmann::json resourceNodes;
+	nlohmann::json assetNodes;
 
 	TArray<UObject*> objects;
 	Globals::GetObjectsOfClass(UInstancedStaticMeshComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
@@ -536,11 +559,10 @@ void extract(float a2) {
 					char buff[200];
 					snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 					std::string key = buff;
-
+					FString assetName;
 					// find asset names
 					if (u) {
 						u->NameField().ToString(&name);
-						FString assetName;
 						if (n->StaticMeshField()) {
 							n->StaticMeshField()->NameField().ToString(&assetName);
 							assets[key][assetName.ToString()] += count;
@@ -558,6 +580,8 @@ void extract(float a2) {
 						n->GetPositionOfInstance(&x, i);
 						auto g = VectorGPS(x);
 						resourceNodes[island][nodes].push_back(std::make_pair(g.X, g.Y));
+						if (!assetName.IsEmpty())
+							assetNodes[island][assetName.ToString()].push_back(std::make_pair(g.X, g.Y));
 					}
 				}
 			}
@@ -572,6 +596,17 @@ void extract(float a2) {
 			auto hull = convexHull(points);
 			for (auto point : hull) {
 				json["DetailedResources"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
+			}
+		}
+	}
+
+	for (auto island : assetNodes.items()) {
+		for (auto node : assetNodes[island.key()].items()) {
+			std::vector<point> points = assetNodes[island.key()][node.key()];
+			// Find areas of resources
+			auto hull = convexHull(points);
+			for (auto point : hull) {
+				json["DetailedAssets"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
 			}
 		}
 	}

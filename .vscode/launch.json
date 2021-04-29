@@ -32,6 +32,16 @@
             ],
             "program": "${workspaceFolder}\\build_json.js",
             "args": ["nobuild", "debug"]
-        }
+        },
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Debug Current File",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\${file}",
+            "args": ["nobuild", "debug"]
+        }        
     ]
 }

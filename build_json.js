@@ -1,11 +1,12 @@
 const fs = require('fs');
 const execSync = require('child_process').execSync;
+const helpers = require('./atlastools/include/helpers.js')
 
 const baseDir = "DumpResources/server/ShooterGame/"
 const resourceDir = baseDir + "Binaries/Win64/resources/"
 const workDir = process.cwd();
 
-const serverConfig = parseJSONFile(baseDir + "ServerGrid.json");
+const serverConfig = helpers.parseJSONFile(baseDir + "ServerGrid.json");
 const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
@@ -27,8 +28,12 @@ let stones = [];
 let bosses = [];
 for (let x = 0; x < xGrids; x++) {
   for (let y = 0; y < yGrids; y++) {
-    let grid = gridName(x, y);
-    grids[grid] = parseJSONFile(resourceDir + grid + ".json");
+    let grid = helpers.gridName(x, y);
+    grids[grid] = helpers.parseJSONFile(resourceDir + grid + ".json");
+
+    for (let x in grids[grid].DetailedResources) {
+      console.log(x);
+    }
 
     // save power stones
     if (grids[grid]["Stones"])
@@ -59,13 +64,15 @@ let gridList = {};
 let islandList = {};
 for (let server in serverConfig.servers) {
   let s = serverConfig.servers[server];
-  let grid = gridName(s.gridX, s.gridY);
+  let grid = helpers.gridName(s.gridX, s.gridY);
 
   gridList[grid] = {};
   gridList[grid].name = s.name;
   gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
   gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
   gridList[grid].serverIslandPointsMultiplier = s.serverIslandPointsMultiplier;
+  gridList[grid].forceServerRules = s.forceServerRules;
+
   gridList[grid].biomes = new Set();
 
 
@@ -98,7 +105,7 @@ for (let server in serverConfig.servers) {
 
     // build resource map
     for (let r in grids[grid].Resources) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
         for (let key in grids[grid].Resources[r]) {
           gridResources.add(key);
           if (!i.resources[key])
@@ -111,7 +118,7 @@ for (let server in serverConfig.servers) {
     // build animal list
     let allanimals = new Set();
     for (let r in grids[grid].Animals) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
         for (let key in grids[grid].Animals[r]) {
           let animalList = grids[grid].Animals[r][key];
           if (process.argv.includes("debug"))
@@ -137,21 +144,24 @@ for (let server in serverConfig.servers) {
     i.animals = Array.from(allanimals).sort();
 
     for (let r in grids[grid].Maps) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
         i.maps = grids[grid].Maps[r];
     }
 
     for (let r in s.discoZones) {
       let disco = s.discoZones[r];
-      let d = grids[grid].Discoveries[disco.ManualVolumeName];
-      if (d) {
-        i.discoveries.push({
-          name: disco.name,
-          long: d[0],
-          lat: d[1],
-        });
+
+      if (disco.ManualVolumeName) {
+        let d = grids[grid].Discoveries[disco.ManualVolumeName];
+        if (d) {
+          i.discoveries.push({
+            name: disco.name,
+            long: d[0],
+            lat: d[1],
+          });
+        }
       } else {
-        if (insideNative(i, [disco.worldX, disco.worldY])) {
+        if (helpers.inside(i, [disco.worldX, disco.worldY])) {
           let coords = worldToGPS(disco.worldX, disco.worldY);
           i.discoveries.push({
             name: disco.name,
@@ -165,23 +175,28 @@ for (let server in serverConfig.servers) {
     let biomes = new Set();
     let biomeTags = new Set();
     for (let r in grids[grid].Biomes) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
         biomes.add(grids[grid].Biomes[r]);
+        for (let b in grids[grid].Biomes[r].tags) {
+          biomeTags.add(grids[grid].Biomes[r].tags[b]);
+        }
+      }
       gridBiomes.add(grids[grid].Biomes[r].name);
     }
+
     i.biomes = Array.from(biomes).sort();
     i.biomeTags = Array.from(biomeTags).sort();
 
-    islandExtended[i.id] = clone(i);
+    islandExtended[i.id] = helpers.clone(i);
     i = islandExtended[i.id];
     for (let r in grids[grid].Meshes) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
         i.meshes = grids[grid].Meshes[r];
     }
     // build resource map
     i.assets = {};
     for (let r in grids[grid].Assets) {
-      if (inside(i, r.split(":")))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
         for (let key in grids[grid].Assets[r]) {
           if (!i.assets[key]) {
             allassets.add(key);
@@ -212,6 +227,10 @@ fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjB
   GridSize: serverConfig.gridSize,
 }), null, "\t"));
 
+fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
+fs.copyFileSync(resourceDir + "craftables.json", './json/craftables.json');
+fs.copyFileSync(resourceDir + "structures.json", './json/structures.json');
+
 fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, "\t"));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
@@ -219,6 +238,7 @@ fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), nu
 fs.writeFileSync('./json/islandExtended.json', JSON.stringify(sortObjByKey(islandExtended), null, "\t"));
 fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), null, "\t"));
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
+
 
 function worldToGPS(x, y) {
   let long = ((x / worldUnitsX) * 200) - 100;
@@ -230,75 +250,6 @@ function GPSToWorld(x, y) {
   let long = ((x + 100) / 200) * worldUnitsX;
   let lat = ((-y + 100) / 200) * worldUnitsY;
   return [long, lat];
-}
-
-function clone(obj) {
-  if (null == obj || "object" != typeof obj) return obj;
-  var copy = obj.constructor();
-  for (var attr in obj) {
-    if (obj.hasOwnProperty(attr)) copy[attr] = obj[attr];
-  }
-  return copy;
-}
-
-function inside(i, c) {
-  let coords = GPSToWorld(Number(c[0]), Number(c[1]));
-  let
-    x1 = i.worldX - (i.islandHeight / 2),
-    y1 = i.worldY - (i.islandWidth / 2),
-    x2 = i.worldX + (i.islandHeight / 2),
-    y2 = i.worldY + (i.islandWidth / 2),
-    x = Number(coords[0]),
-    y = Number(coords[1]);
-
-  if (x > x1 &&
-    x < x2 &&
-    y > y1 &&
-    y < y2) {
-    return true;
-  }
-  return false;
-}
-
-function insideNative(i, c) {
-  let
-    x1 = i.worldX - (i.islandHeight / 2),
-    y1 = i.worldY - (i.islandWidth / 2),
-    x2 = i.worldX + (i.islandHeight / 2),
-    y2 = i.worldY + (i.islandWidth / 2),
-    x = c[0],
-    y = c[1];
-
-  if (x > x1 &&
-    x < x2 &&
-    y > y1 &&
-    y < y2) {
-    return true;
-  }
-  return false;
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function stop() {
-  await sleep(2000000);
-  // Sleep in loop
-  for (let i = 0; i < 50; i++) {
-    if (i === 3)
-      await sleep(2000000);
-  }
-}
-
-// helpers
-function gridName(x, y) {
-  return String.fromCharCode(65 + x) + (1 + y);
-}
-
-function parseJSONFile(file) {
-  const rawdata = fs.readFileSync(file);
-  return JSON.parse(rawdata);
 }
 
 function sortObjByKey(value) {
