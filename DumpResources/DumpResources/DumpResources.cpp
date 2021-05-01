@@ -308,6 +308,7 @@ void dumpAnimals() {
 
 void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
+	auto gameInstance = static_cast<UShooterGameInstance*> (World->OwningGameInstanceField());
 	nlohmann::json json;
 
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
@@ -499,10 +500,19 @@ void extract(float a2) {
 		if (name.Contains("FoliageOverride")) {
 			std::string island = GetIslandName(name.ToString());
 			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
+			dz->BeginPlay(a2);
 			for (auto o : dz->FoliageAttachmentOverrides()) {
 				FString name;
 				o.ForFoliageTypeName.ToString(&name);
+				//Log::GetLog()->info("override {}", name.ToString());
 				OverrideClasses[island + "_" + name.ToString()] = o.OverrideActorComponent.uClass;
+			}
+			for (auto o : dz->FoliageOverrideMap()) {
+				FString key, value;
+
+				o.Key.ToString(&key);
+				//Log::GetLog()->info("override map {} {}", key.ToString(), stringrepresentation(o.Value.uClass));
+				OverrideClasses[island + "_" + key.ToString()] = o.Value.uClass;
 			}
 		}
 	}
@@ -526,12 +536,8 @@ void extract(float a2) {
 		FString name;
 		object->GetPathName(&name, NULL);
 		if (n) {
-			auto u = n->FoliageTypeReferenceField();
-			if (u)
-				u->NameField().ToString(&name);
-
-			auto level = n->GetComponentLevel();
 			// Get the override key
+			auto level = n->GetComponentLevel();
 			FString lvlname;
 			level->GetFullName(&lvlname, NULL);
 			std::string island = GetIslandName(lvlname.ToString());
@@ -541,6 +547,14 @@ void extract(float a2) {
 			auto nSub = n->AttachedComponentClassField().uClass;
 			if (OverrideClasses.find(overrideSettings) != OverrideClasses.end()) {
 				nSub = OverrideClasses[overrideSettings];
+			}
+			
+			auto u = n->FoliageTypeReferenceField();
+			if (u) {
+				u->NameField().ToString(&name);
+				TSubclassOf<UActorComponent> result;
+				gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
+				nSub = result.uClass;
 			}
 
 			if (nSub) {
