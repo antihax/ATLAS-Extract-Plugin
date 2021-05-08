@@ -76,5 +76,15 @@ module.exports = {
             return true;
         }
         return false;
+    },
+
+    distance: function (c1, c2) {
+        var xs = c1[0] - c2[0],
+            ys = c1[1] - c2[1]
+
+        xs *= xs;
+        ys *= ys;
+
+        return Math.sqrt(xs + ys);
     }
 }

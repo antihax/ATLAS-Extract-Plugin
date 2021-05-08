@@ -435,12 +435,13 @@ void extract(float a2) {
 			else if (name.Contains("Hydra")) {
 				boss = "Hydra";
 			}
-			json["Boss"][boss.ToString()] = nlohmann::json::array();
+			if (json["Boss"][boss.ToString()].is_null())
+				json["Boss"][boss.ToString()] = nlohmann::json::array();
 			for (auto spawnVolume : zoneManager->LinkedZoneSpawnVolumeEntriesField()) {
 				auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
 				json["Boss"][boss.ToString()].push_back({ gps.X, gps.Y });
 			}
-			continue;
+
 		}
 		if (name.Contains("OceanEpicNPCZoneManager")) {
 			Log::GetLog()->info("Found ocean epic {}", name.ToString());
@@ -455,14 +456,17 @@ void extract(float a2) {
 					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
 
 					if (name.Contains("MeanWhale_SeaMonster")) {
-						json["Boss"]["MeanWhale"] = nlohmann::json::array();
+						if (json["Boss"]["MeanWhale"].is_null())
+							json["Boss"]["MeanWhale"] = nlohmann::json::array();
 						json["Boss"]["MeanWhale"].push_back({ gps.X, gps.Y });
 					}
 					else if (name.Contains("GentleWhale_SeaMonster")) {
+						if (json["Boss"]["GentleWhale"].is_null())
 						json["Boss"]["GentleWhale"] = nlohmann::json::array();
 						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
 					}
 					else if (name.Contains("Squid_Character")) {
+						if (json["Boss"]["GiantSquid"].is_null())
 						json["Boss"]["GiantSquid"] = nlohmann::json::array();
 						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
 					}
@@ -548,7 +552,7 @@ void extract(float a2) {
 			if (OverrideClasses.find(overrideSettings) != OverrideClasses.end()) {
 				nSub = OverrideClasses[overrideSettings];
 			}
-			
+
 			auto u = n->FoliageTypeReferenceField();
 			if (u) {
 				u->NameField().ToString(&name);
@@ -608,7 +612,7 @@ void extract(float a2) {
 			std::vector<point> points = resourceNodes[island.key()][node.key()];
 			// Find areas of resources
 			auto hull = convexHull(points);
-			for (auto point : hull) {
+			for (auto point : points) {
 				json["DetailedResources"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
 			}
 		}
