@@ -126,7 +126,10 @@ for (let server in serverConfig.servers) {
               animalList.levelOffset < 60 &&
               (animalList.levelLerp > 0.0 || animalList.levelOffset > 0 || animalList.levelMultiplier > 1.0 || animalList.islandLevelMultiplier > 1.0 || animalList.islandLevelOffset > 0 || animalList.levelMinOveride > 0))
               console.log(grid, animalList.levelLerp, animalList.levelOffset, animalList.levelMultiplier, animalList.islandLevelMultiplier, animalList.islandLevelOffset, animalList.levelMinOveride)
-
+          // print out high spawns
+          if (process.argv.includes("debug"))
+            if (animalList.spawnLimits[0] >= 25 && animalList.animals[0].name == "Bear")
+              console.log(animalList.animals[0].name, animalList.gps[0], animalList.spawnLimits)
 
           for (let a in animalList.animals) {
             let animal = animalList.animals[a]
@@ -211,6 +214,9 @@ for (let server in serverConfig.servers) {
   gridList[grid].biomes = Array.from(gridBiomes).sort();
   gridList[grid].animals = Array.from(gridAnimals).sort();
   gridList[grid].resources = Array.from(gridResources).sort();
+  gridList[grid].sotd = grids[grid].SoTD;
+  gridList[grid].flotsam = grids[grid].Flotsam;
+  gridList[grid].sunktreasure = grids[grid].SunkenTreasure;
 }
 
 if (process.argv.includes("debug"))

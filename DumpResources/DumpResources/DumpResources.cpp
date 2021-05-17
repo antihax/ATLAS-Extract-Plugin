@@ -407,7 +407,7 @@ void extract(float a2) {
 
 					json["Animals"][buff].push_back({
 						{ "gps", locations },
-						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField(), zm->AbsoluteMaxNumberOfNPCField(), zm->DesiredNumberOfNPCMultiplierField() } },
+						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField() * zm->DesiredNumberOfNPCMultiplierField(), zm->AbsoluteMaxNumberOfNPCField(), zm->TheIncreaseNPCIntervalField() } },
 						{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
 						{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
 						{ "levelMultiplier", zm->NPCLevelMultiplierField() },
@@ -441,11 +441,45 @@ void extract(float a2) {
 				auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
 				json["Boss"][boss.ToString()].push_back({ gps.X, gps.Y });
 			}
-
 		}
+
+		if (name.Contains("FloatsamSupplyCrate")) {
+			auto fsc  = static_cast<ASupplyCrateSpawningVolume*> (actor);
+			fsc->BeginPlay(a2);
+			Log::GetLog()->info("Found Flotsam Manager {}", name.ToString());
+			json["Flotsam"] = {
+				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
+				{ "qualityMultiplier", fsc->ExtraCrateQualityMultiplierField()},
+			};
+		}
+
+		if (name.Contains("SunkenTreasureShip")) {
+			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
+			fsc->BeginPlay(a2);
+			Log::GetLog()->info("Found Sunken Treasure Manager {}", name.ToString());
+			json["SunkenTreasure"] = {
+				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
+				{ "qualityMultiplier", fsc->ExtraCrateQualityMultiplierField()},
+			};
+		}
+
+		if (name.Contains("NPCShipZoneManager")) {
+			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
+			zoneManager->BeginPlay();
+			Log::GetLog()->info("Found Ship Zone Manager {}", name.ToString());
+			json["SoTD"] = {
+				{ "spawnLimits", {zoneManager->MinDesiredNumberOfNPCField() * zoneManager->DesiredNumberOfNPCMultiplierField(), zoneManager->AbsoluteMaxNumberOfNPCField(), zoneManager->TheIncreaseNPCIntervalField() } },
+				{ "levelOffset", zoneManager->ExtraNPCLevelOffsetField() },
+				{ "levelLerp", zoneManager->NPCLerpToMaxRandomBaseLevelField() },
+				{ "levelMultiplier", zoneManager->NPCLevelMultiplierField() },
+				{ "levelMinOveride", zoneManager->ForceOverrideNPCBaseLevelField() } 
+			};
+		}
+
 		if (name.Contains("OceanEpicNPCZoneManager")) {
 			Log::GetLog()->info("Found ocean epic {}", name.ToString());
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
+			zoneManager->BeginPlay();
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
 				Log::GetLog()->info("Found dino epic {}", name.ToString());
 				int count = 0;
@@ -462,12 +496,12 @@ void extract(float a2) {
 					}
 					else if (name.Contains("GentleWhale_SeaMonster")) {
 						if (json["Boss"]["GentleWhale"].is_null())
-						json["Boss"]["GentleWhale"] = nlohmann::json::array();
+							json["Boss"]["GentleWhale"] = nlohmann::json::array();
 						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
 					}
 					else if (name.Contains("Squid_Character")) {
 						if (json["Boss"]["GiantSquid"].is_null())
-						json["Boss"]["GiantSquid"] = nlohmann::json::array();
+							json["Boss"]["GiantSquid"] = nlohmann::json::array();
 						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
 					}
 
