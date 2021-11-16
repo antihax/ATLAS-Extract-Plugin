@@ -16,7 +16,7 @@ if (!process.argv.includes("nobuild")) {
   process.chdir('DumpResources');
   for (let y = 0; y < yGrids; y++) {
     for (let x = 0; x < xGrids; x++) {
-      execSync(process.cwd() + `\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer`)
+      execSync("start /min " + process.cwd() + `\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer`)
     }
   }
   process.chdir(workDir);
@@ -70,11 +70,11 @@ for (let server in serverConfig.servers) {
   gridList[grid].name = s.name;
   gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
   gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
+  gridList[grid].serverTemplate = s.serverTemplateName;
   gridList[grid].serverIslandPointsMultiplier = s.serverIslandPointsMultiplier;
   gridList[grid].forceServerRules = s.forceServerRules;
 
   gridList[grid].biomes = new Set();
-
 
   for (let island in s.islandInstances) {
     let cp = s.islandInstances[island];
@@ -99,6 +99,8 @@ for (let server in serverConfig.servers) {
     gridBiomes = new Set();
     gridAnimals = new Set();
     gridResources = new Set();
+    if (s.serverTemplateName)
+      gridBiomes.add(s.serverTemplateName)
 
     if (i.treasureMapSpawnPoints && i.treasureMapSpawnPoints.length > 0)
       i.resources["Treasure Spawns"] = i.treasureMapSpawnPoints.length;
@@ -199,7 +201,7 @@ for (let server in serverConfig.servers) {
     // build resource map
     i.assets = {};
     for (let r in grids[grid].Assets) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
         for (let key in grids[grid].Assets[r]) {
           if (!i.assets[key]) {
             allassets.add(key);
@@ -208,10 +210,11 @@ for (let server in serverConfig.servers) {
             i.assets[key] += grids[grid].Assets[r][key];
           }
         }
+      } 
     }
   }
 
-  gridList[grid].biomes = Array.from(gridBiomes).sort();
+  gridList[grid].biomes = Array.from(gridBiomes);
   gridList[grid].animals = Array.from(gridAnimals).sort();
   gridList[grid].resources = Array.from(gridResources).sort();
   gridList[grid].sotd = grids[grid].SoTD;
@@ -237,6 +240,7 @@ fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
 fs.copyFileSync(resourceDir + "craftables.json", './json/craftables.json');
 fs.copyFileSync(resourceDir + "structures.json", './json/structures.json');
 
+
 fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, "\t"));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
@@ -244,8 +248,9 @@ fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), nu
 fs.writeFileSync('./json/islandExtended.json', JSON.stringify(sortObjByKey(islandExtended), null, "\t"));
 fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), null, "\t"));
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
+fs.writeFileSync('./json/portals.json', JSON.stringify(sortObjByKey(serverConfig.portalPaths), null, "\t"));
 
-
+/*
 function worldToGPS(x, y) {
   let long = ((x / worldUnitsX) * 200) - 100;
   let lat = 100 - ((y / worldUnitsY) * 200);
@@ -255,6 +260,18 @@ function worldToGPS(x, y) {
 function GPSToWorld(x, y) {
   let long = ((x + 100) / 200) * worldUnitsX;
   let lat = ((-y + 100) / 200) * worldUnitsY;
+  return [long, lat];
+}*/
+
+function worldToGPS(x, y) {
+  let long = ((x / worldUnitsX) * 550) - 100;
+  let lat = 100 - ((y / worldUnitsY) * 550);
+  return [long, lat];
+}
+
+function GPSToWorld(x, y) {
+  let long = ((x + 100) / 550) * worldUnitsX;
+  let lat = ((-y + 100) / 550) * worldUnitsY;
   return [long, lat];
 }
 
