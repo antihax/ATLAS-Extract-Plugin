@@ -8,6 +8,7 @@
     "UShooterGameInstance",
     "AShooterGameMode",
     "ADiscoveryZone",
+    "UPrimalDinoSettings",
     "UInstancedStaticMeshComponent",
     "UStaticMesh",
     "UMeshComponent",
@@ -108,6 +109,9 @@
     "ULevelBase",
     "FSeamlessServerInfo",
     "FSeamlessGridInfo",
+    "FDinoFoodEffectivenessMultipliers",
+    "FUseItemAddCharacterStatusValue",
+    "FStatusValueModifierDescription",
     "FInternetAddrBSD",
     "ABiomeZoneVolume"
   ],

@@ -18,6 +18,7 @@ DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FStrin
 DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
 DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
 
+
 static const std::string ServerGrid() {
 	// Get server grid 
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
@@ -105,11 +106,15 @@ FString fixNPCName(FString npcname) {
 void dumpCraftables() {
 	nlohmann::json json;
 	json["Craftables"] = nullptr;
+	json["Foods"] = nullptr;
 	Log::GetLog()->info("Dump Craftables");
 
 	// Get all blueprint crafting requirements
 	TArray<UObject*> types;
 	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+		
+	const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
+
 	for (auto object : types) {
 		auto n = static_cast<UPrimalItem*> (object);
 		FString name;
@@ -119,6 +124,23 @@ void dumpCraftables() {
 		// Ignore some of the trash items
 		if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
 			continue;
+
+		if (n->UseItemAddCharacterStatusValuesField().Num()) {
+			json["Foods"][name.ToString()] = nullptr;
+			Log::GetLog()->info("food? {} ", name.ToString());
+				for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
+				json["Foods"][name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
+					{"add", stat.BaseAmountToAdd},
+					{"addOverTime", stat.bAddOverTime == 1 ? true : false},
+					{"addOverTimeSpeed", stat.AddOverTimeSpeed},
+					};
+				json["Foods"][name.ToString()]["SpoilTime"] = n->SpoilingTimeField();
+				json["Foods"][name.ToString()]["Weight"] = n->BaseItemWeightField() * n->BaseItemWeightMultiplierField();
+				json["Foods"][name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
+				
+			}
+		}
+
 		for (auto res : n->BaseCraftingResourceRequirementsField()) {
 			if (res.ResourceItemType.uClass) {
 				if (res.ResourceItemType.uClass->ClassDefaultObjectField()) {
@@ -133,7 +155,7 @@ void dumpCraftables() {
 	}
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/craftables.json");
-	file << json;
+	file << std::setw(4) << json;
 	file.flush();
 	file.close();
 }
@@ -265,16 +287,28 @@ void dumpAnimals() {
 		json["Animals"][name.ToString()]["babyTwinsChance"] = n->BabyChanceOfTwinsField();
 		json["Animals"][name.ToString()]["requiredAffinity"] = n->RequiredTameAffinityField();
 		json["Animals"][name.ToString()]["requiredAffinityPerBaseLevel"] = n->RequiredTameAffinityPerBaseLevelField();
-		/*if (n->DinoSettingsClassField().uClass) {
 
-				Log::GetLog()->info("Server Grid {} ", stringrepresentation(n->DinoSettingsClassField().uClass));
-			auto dsc = static_cast<UPrimalDinoSettings*>(n->DinoSettingsClassField().uClass->GetDefaultObject(true));
+		if (n->DinoSettingsClassField().uClass) {
+			const auto dsc = static_cast<UPrimalDinoSettings*>(n->DinoSettingsClassField().uClass->GetDefaultObject(true));
+			json["Animals"][name.ToString()]["foodPreference"] = dsc->DinoFoodTypeNameField().ToString();
+			json["Animals"][name.ToString()]["affinityDecreaseSpeed"] = dsc->TamingAffinityNoFoodDecreasePercentageSpeedField();
+
 			if (dsc) {
-				for (auto food : dsc->FoodEffectivenessMultipliersField()) {
-
+				for (const auto food : dsc->FoodEffectivenessMultipliersField()) {
+					if (food.FoodItemParent.uClass) {
+						auto foodItem = static_cast<UPrimalItem*>(food.FoodItemParent.uClass->GetDefaultObject(true));
+						FString type;
+						foodItem->GetItemName(&type, false, false, NULL);
+						json["Animals"][name.ToString()]["food"].push_back({
+							{"name", type.ToString()},
+							{"weight", foodItem->BaseItemWeightField() * foodItem->BaseItemWeightMultiplierField()},
+							{"affinityOverride", food.AffinityEffectivenessMultiplier * food.AffinityOverride},
+							{"foodEffectivenessMultiplier", food.FoodEffectivenessMultiplier},
+							});
+					}
 				}
 			}
-		}*/
+		}
 
 		if (n->GetKillXP())
 			json["Animals"][name.ToString()]["XP"] = n->XPEarnMultiplierField() * n->KillXPBaseField();
@@ -407,7 +441,7 @@ void extract(float a2) {
 
 					json["Animals"][buff].push_back({
 						{ "gps", locations },
-						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField() * zm->DesiredNumberOfNPCMultiplierField(), zm->AbsoluteMaxNumberOfNPCField(), zm->TheIncreaseNPCIntervalField() } },
+						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField() * zm->DesiredNumberOfNPCMultiplierField(), zm->AbsoluteMaxNumberOfNPCField(), zm->TheIncreaseNPCIntervalField() * zm->IncreaseNPCIntervalMultiplierField() } },
 						{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
 						{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
 						{ "levelMultiplier", zm->NPCLevelMultiplierField() },
@@ -444,7 +478,7 @@ void extract(float a2) {
 		}
 
 		if (name.Contains("FloatsamSupplyCrate")) {
-			auto fsc  = static_cast<ASupplyCrateSpawningVolume*> (actor);
+			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
 			fsc->BeginPlay(a2);
 			Log::GetLog()->info("Found Flotsam Manager {}", name.ToString());
 			json["Flotsam"] = {
@@ -468,11 +502,11 @@ void extract(float a2) {
 			zoneManager->BeginPlay();
 			Log::GetLog()->info("Found Ship Zone Manager {}", name.ToString());
 			json["SoTD"] = {
-				{ "spawnLimits", {zoneManager->MinDesiredNumberOfNPCField() * zoneManager->DesiredNumberOfNPCMultiplierField(), zoneManager->AbsoluteMaxNumberOfNPCField(), zoneManager->TheIncreaseNPCIntervalField() } },
+				{ "spawnLimits", {zoneManager->MinDesiredNumberOfNPCField() * zoneManager->DesiredNumberOfNPCMultiplierField(), zoneManager->AbsoluteMaxNumberOfNPCField(), zoneManager->TheIncreaseNPCIntervalField() * zoneManager->IncreaseNPCIntervalMultiplierField() } },
 				{ "levelOffset", zoneManager->ExtraNPCLevelOffsetField() },
 				{ "levelLerp", zoneManager->NPCLerpToMaxRandomBaseLevelField() },
 				{ "levelMultiplier", zoneManager->NPCLevelMultiplierField() },
-				{ "levelMinOveride", zoneManager->ForceOverrideNPCBaseLevelField() } 
+				{ "levelMinOveride", zoneManager->ForceOverrideNPCBaseLevelField() }
 			};
 		}
 
@@ -779,6 +813,7 @@ void Load() {
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger, &AShooterGameMode_InitOptionInteger_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat, &AShooterGameMode_InitOptionFloat_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool, &AShooterGameMode_InitOptionBool_original);
+
 }
 
 void Unload() {
