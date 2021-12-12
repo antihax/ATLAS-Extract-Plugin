@@ -26,14 +26,11 @@ if (!process.argv.includes("nobuild")) {
 let grids = {};
 let stones = [];
 let bosses = [];
+let altars = [];
 for (let x = 0; x < xGrids; x++) {
   for (let y = 0; y < yGrids; y++) {
     let grid = helpers.gridName(x, y);
     grids[grid] = helpers.parseJSONFile(resourceDir + grid + ".json");
-
-    for (let x in grids[grid].DetailedResources) {
-      console.log(x);
-    }
 
     // save power stones
     if (grids[grid]["Stones"])
@@ -53,6 +50,15 @@ for (let x = 0; x < xGrids; x++) {
             long: grids[grid]["Boss"][boss][position][0],
             lat: grids[grid]["Boss"][boss][position][1],
           });
+    // save altars
+    if (grids[grid]["Altar"])
+      for (altar in grids[grid]["Altar"])
+        for (position in grids[grid]["Altar"][altar])
+          altars.push({
+            name: altar,
+            long: grids[grid]["Altar"][altar][position][0],
+            lat: grids[grid]["Altar"][altar][position][1],
+          });          
   }
 }
 let animalcheck = new Set();
@@ -68,6 +74,7 @@ for (let server in serverConfig.servers) {
 
   gridList[grid] = {};
   gridList[grid].name = s.name;
+  gridList[grid].region = s.hiddenAtlasId;
   gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
   gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
   gridList[grid].serverTemplate = s.serverTemplateName;
@@ -84,11 +91,18 @@ for (let server in serverConfig.servers) {
       worldY: cp.worldY,
       rotation: cp.rotation,
       name: cp.name,
+      region: s.hiddenAtlasId,
       islandWidth: cp.islandWidth,
       islandHeight: cp.islandHeight,
       isControlPoint: cp.isControlPoint,
     };
-
+    i.sublevels = [];
+    for (let sl in s.sublevels) {
+      let sublevel = s.sublevels[sl];
+      if (sublevel.id == i.id) {
+        i.sublevels.push(sublevel.name);
+      }
+    }
     islands[i.id] = i;
 
     i.grid = grid;
@@ -243,11 +257,13 @@ fs.copyFileSync(resourceDir + "structures.json", './json/structures.json');
 
 fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, "\t"));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
+fs.writeFileSync('./json/altars.json', JSON.stringify(sortObjByKey(altars), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
 fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), null, "\t"));
 fs.writeFileSync('./json/islandExtended.json', JSON.stringify(sortObjByKey(islandExtended), null, "\t"));
 fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), null, "\t"));
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
+fs.writeFileSync('./json/tradeWinds.json', JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, "\t"));
 fs.writeFileSync('./json/portals.json', JSON.stringify(sortObjByKey(serverConfig.portalPaths), null, "\t"));
 
 /*

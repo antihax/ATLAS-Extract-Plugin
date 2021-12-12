@@ -79,9 +79,12 @@ static std::string GetIslandName(std::string s) {
 
 // Remove things we do not care about.
 FString fixName(FString name) {
+	name = name.Replace(L"Default__", L"");
+	name = name.Replace(L"PrimalItem", L"");
 	name = name.Replace(L"Common ", L"");
 	name = name.Replace(L" (Broken)", L"");
 	name = name.TrimStartAndEnd();
+	name.RemoveFromStart("_");
 	return name;
 }
 
@@ -101,6 +104,12 @@ FString fixNPCName(FString npcname) {
 	npcname = npcname.Replace(L"_C", L"");
 	npcname = npcname.TrimStartAndEnd();
 	return npcname;
+}
+
+std::string getIconName(UTexture2D* tex) {
+	FString name;
+	tex->NameField().ToString(&name);
+	return name.ToString();
 }
 
 void dumpCraftables() {
@@ -124,10 +133,16 @@ void dumpCraftables() {
 		// Ignore some of the trash items
 		if (name.Contains(FString("incorrect primalitem")) || name.StartsWith("Base"))
 			continue;
+		FString className;
+		n->NameField().ToString(&className);
+		className = fixName(className);
+
+		json["Craftables"][name.ToString()]["ClassName"] = className.ToString();
+		if (n->ItemIconField())
+			json["Craftables"][name.ToString()]["Icon"] = getIconName(n->ItemIconField());
 
 		if (n->UseItemAddCharacterStatusValuesField().Num()) {
 			json["Foods"][name.ToString()] = nullptr;
-			Log::GetLog()->info("food? {} ", name.ToString());
 				for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
 				json["Foods"][name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
 					{"add", stat.BaseAmountToAdd},
@@ -137,7 +152,6 @@ void dumpCraftables() {
 				json["Foods"][name.ToString()]["SpoilTime"] = n->SpoilingTimeField();
 				json["Foods"][name.ToString()]["Weight"] = n->BaseItemWeightField() * n->BaseItemWeightMultiplierField();
 				json["Foods"][name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
-				
 			}
 		}
 
@@ -149,6 +163,7 @@ void dumpCraftables() {
 					pi->GetItemName(&type, false, true, NULL);
 					type = fixName(type);
 					json["Craftables"][name.ToString()]["Ingredients"][type.ToString()] = res.BaseResourceRequirement;
+					
 				}
 			}
 		}
@@ -265,8 +280,10 @@ void dumpAnimals() {
 			continue;
 		FString name;
 		n->NameField().ToString(&name);
-
-		if (name.Contains("Default__Vulture") || name.Contains("Default__Sheep") || name.Contains("Default__Crab") || name.Contains("Ship") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("HumanNPC") || name.Contains("Creature") || name.Contains("Galley") || name.Contains("_Raft"))
+		FString className;
+		n->NameField().ToString(&className);
+		className = fixName(className);
+		if (name.Contains("Default__Vulture") || name.Contains("Default__Sheep") || name.Contains("Default__Crab") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") ||   name.Contains("Galley") || name.Contains("_Raft"))
 			continue;
 
 		name = fixNPCName(name);
@@ -276,6 +293,7 @@ void dumpAnimals() {
 			b.ToString(&bname);
 			json["Animals"][name.ToString()]["breedingBiomes"].push_back(bname.ToString());
 		}
+		json["Animals"][name.ToString()]["className"] = className.ToString();
 		json["Animals"][name.ToString()]["minTemperatureToBreed"] = n->MinTemperatureToBreedField();
 		json["Animals"][name.ToString()]["maxTemperatureToBreed"] = n->MaxTemperatureToBreedField();
 		json["Animals"][name.ToString()]["canBeTamed"] = n->bCanBeTamed().Get();
@@ -357,7 +375,7 @@ void extract(float a2) {
 	const auto grid = static_cast<UShooterGameInstance*> (World->OwningGameInstanceField())->GridInfoField();
 	const auto server = grid->GetCurrentServerInfo();
 
-	//Log::GetLog()->info("Server Name {} {}", grid->WorldFriendlyNameField().ToString(), server->NameField().ToString());
+	Log::GetLog()->info("Server Name {} {}", grid->WorldFriendlyNameField().ToString(), server->NameField().ToString());
 
 	TArray<AActor*> found_actors;
 
@@ -365,8 +383,10 @@ void extract(float a2) {
 	std::unordered_map<std::string, UClass*> OverrideClasses;
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
+		actor->BeginPlay();
 		FString name;
 		actor->GetFullName(&name, NULL);
+
 		if (name.Contains("Biome")) {
 			auto gps = ActorGPS(actor);
 			auto biome = static_cast<ABiomeZoneVolume*> (actor);
@@ -701,7 +721,18 @@ void extract(float a2) {
 		AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
+		
 		actor->GetFullName(&name, NULL);
+		
+		// Find the new altars
+		if (name.Contains("StructurePlaceHolder_StaticNode_C")) {
+			Log::GetLog()->info(" placeholder {} ", name.ToString());
+			auto gps = ActorGPS(actor);
+			auto tags = actor->TagsField();
+			actor->NameField().ToString(&name);
+			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(),name.ToString(), gps.X, gps.Y);
+			json["Altar"][name.ToString()].push_back({ gps.X, gps.Y });
+		}
 
 		if (
 			name.Contains("HierarchicalInstancedStaticMeshActor") &&
