@@ -10,10 +10,14 @@
 *.userosscache
 *.sln.docstates
 
+assets
+atlasicons
 server
 steamcmd
 json
 steamcmd.zip
+imgmgk
+imgmgk.zip
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -69,7 +73,6 @@ StyleCopReport.xml
 *.obj
 *.iobj
 *.pch
-*.pdb
 *.ipdb
 *.pgc
 *.pgd

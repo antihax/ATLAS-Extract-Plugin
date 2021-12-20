@@ -112,11 +112,10 @@ std::string getIconName(UTexture2D* tex) {
 	return name.ToString();
 }
 
-void dumpCraftables() {
+void dumpItems() {
 	nlohmann::json json;
-	json["Craftables"] = nullptr;
-	json["Foods"] = nullptr;
-	Log::GetLog()->info("Dump Craftables");
+	json = nullptr;
+	Log::GetLog()->info("Dump Items");
 
 	// Get all blueprint crafting requirements
 	TArray<UObject*> types;
@@ -137,21 +136,21 @@ void dumpCraftables() {
 		n->NameField().ToString(&className);
 		className = fixName(className);
 
-		json["Craftables"][name.ToString()]["ClassName"] = className.ToString();
+		json[name.ToString()]["ClassName"] = className.ToString();
 		if (n->ItemIconField())
-			json["Craftables"][name.ToString()]["Icon"] = getIconName(n->ItemIconField());
+			json[name.ToString()]["Icon"] = getIconName(n->ItemIconField());
 
 		if (n->UseItemAddCharacterStatusValuesField().Num()) {
-			json["Foods"][name.ToString()] = nullptr;
+			json[name.ToString()] = nullptr;
 				for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
-				json["Foods"][name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
+				json[name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
 					{"add", stat.BaseAmountToAdd},
 					{"addOverTime", stat.bAddOverTime == 1 ? true : false},
 					{"addOverTimeSpeed", stat.AddOverTimeSpeed},
 					};
-				json["Foods"][name.ToString()]["SpoilTime"] = n->SpoilingTimeField();
-				json["Foods"][name.ToString()]["Weight"] = n->BaseItemWeightField() * n->BaseItemWeightMultiplierField();
-				json["Foods"][name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
+				json[name.ToString()]["SpoilTime"] = n->SpoilingTimeField();
+				json[name.ToString()]["Weight"] = n->BaseItemWeightField() * n->BaseItemWeightMultiplierField();
+				json[name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
 			}
 		}
 
@@ -162,14 +161,14 @@ void dumpCraftables() {
 					FString type;
 					pi->GetItemName(&type, false, true, NULL);
 					type = fixName(type);
-					json["Craftables"][name.ToString()]["Ingredients"][type.ToString()] = res.BaseResourceRequirement;
+					json[name.ToString()]["Ingredients"][type.ToString()] = res.BaseResourceRequirement;
 					
 				}
 			}
 		}
 	}
 	std::filesystem::create_directory("resources");
-	std::ofstream file("resources/craftables.json");
+	std::ofstream file("resources/items.json");
 	file << std::setw(4) << json;
 	file.flush();
 	file.close();
@@ -364,8 +363,8 @@ void extract(float a2) {
 	nlohmann::json json;
 
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
-	// Save craftables.
-	dumpCraftables();
+	// Save Items.
+	dumpItems();
 	dumpStructures();
 	dumpLootTables();
 	dumpAnimals();
@@ -507,7 +506,7 @@ void extract(float a2) {
 			};
 		}
 
-		if (name.Contains("SunkenTreasureShip")) {
+		if (name.Contains("SunkenTreasure")) {
 			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
 			fsc->BeginPlay(a2);
 			Log::GetLog()->info("Found Sunken Treasure Manager {}", name.ToString());
@@ -548,27 +547,24 @@ void extract(float a2) {
 							json["Boss"]["MeanWhale"] = nlohmann::json::array();
 						json["Boss"]["MeanWhale"].push_back({ gps.X, gps.Y });
 					}
-					else if (name.Contains("GentleWhale_SeaMonster")) {
+					if (name.Contains("GentleWhale_SeaMonster")) {
 						if (json["Boss"]["GentleWhale"].is_null())
 							json["Boss"]["GentleWhale"] = nlohmann::json::array();
 						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
 					}
-					else if (name.Contains("Squid_Character")) {
+					if (name.Contains("Squid_Character")) {
 						if (json["Boss"]["GiantSquid"].is_null())
 							json["Boss"]["GiantSquid"] = nlohmann::json::array();
 						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
 					}
-
 					count++;
 				}
 			}
-			continue;
 		}
-		else if (name.Contains("SnowCaveBossManager")) {
+		if (name.Contains("SnowCaveBossManager")) {
 			auto gps = ActorGPS(actor);
 			json["Boss"]["Yeti"] = nlohmann::json::array();
 			json["Boss"]["Yeti"].push_back({ gps.X, gps.Y });
-			continue;
 		}
 
 		// POWERSTONE AND ESSENCE
@@ -584,7 +580,6 @@ void extract(float a2) {
 			else {
 				json["Stones"]["Stone " + s.ToString()] = { gps.X, gps.Y };
 			}
-			continue;
 		}
 
 		// RESOURCE OVERRIDES

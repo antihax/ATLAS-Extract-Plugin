@@ -12,4 +12,4 @@ This must be ran on windows due to the inability to run plugins on Linux.
 Run `prereq.bat` to install the server, plugins, and configuration.
 Install your servergrid.json file to `DumpResources\server\ShooterGame`.
 
-Run `build_json.js` and once all grids are processed the output will be in `./json`.
+Run `node build_json.js` and once all grids are processed the output will be in `./json`.

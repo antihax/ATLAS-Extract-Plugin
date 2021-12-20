@@ -32,9 +32,31 @@ module.exports = {
         return String.fromCharCode(65 + x) + (1 + y);
     },
 
+    constraint: function (value, minVal, maxVal, minRange, maxRange) {
+        return (((value - minVal) / (maxVal - minVal)) * (maxRange - minRange));
+    },
+
     parseJSONFile: function (file) {
         const rawdata = fs.readFileSync(file);
         return JSON.parse(rawdata);
+    },
+
+    /*
+    function GPStoLeaflet(x, y) {
+        var long = ((y - 100) * 0.3636363636363636) * 1.28  ,
+                  lat = ((100 + x) * 0.3636363636363636) * 1.28 ;
+      
+                  return [long, lat];
+      }*/
+
+    translateGPS: function (c) {
+        let y =  this.constraint(c[1], -450, -350, 0, 200) - 100,
+            x = this.constraint(c[0], -100, 150, 0, 200) - 100;
+
+
+      //  console.log(x, y)
+
+        return [x, y];
     },
 
     sortObjByKey: function (value) {

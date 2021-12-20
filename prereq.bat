@@ -11,4 +11,4 @@ copy DumpResources\DumpResources\configs\PdbConfig.json DumpResources\server\Sho
 powershell -Command "(New-Object Net.WebClient).DownloadFile('https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip', 'DumpResources\steamcmd/steamcmd.zip')"
 tar -xf DumpResources\steamcmd/steamcmd.zip -C DumpResources\steamcmd
 
-DumpResources\steamcmd\steamcmd.exe +login anonymous +force_install_dir ..\server +app_update 1006030 +quit
+DumpResources\steamcmd\steamcmd.exe +force_install_dir ..\server +login anonymous +app_update 1006030 +quit

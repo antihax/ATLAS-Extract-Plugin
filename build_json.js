@@ -251,7 +251,7 @@ fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjB
 }), null, "\t"));
 
 fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
-fs.copyFileSync(resourceDir + "craftables.json", './json/craftables.json');
+fs.copyFileSync(resourceDir + "items.json", './json/items.json');
 fs.copyFileSync(resourceDir + "structures.json", './json/structures.json');
 
 
