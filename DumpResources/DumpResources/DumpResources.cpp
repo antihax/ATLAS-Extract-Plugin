@@ -12,12 +12,10 @@
 
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(AShooterGameMode_InitOptions, void, AShooterGameMode*, FString);
-
 DECLARE_HOOK(AShooterGameMode_InitOptionString, void, AShooterGameMode*, FString, FString, FString);
 DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FString, FString, FString, int);
 DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
 DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
-
 
 static const std::string ServerGrid() {
 	// Get server grid 
@@ -240,16 +238,12 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 					auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
 					FString type;
 					pi->GetItemName(&type, false, false, NULL);
-					if (name.StartsWith("StoneHarvestComponent"))
-						type.Append(" (Rock)");
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 				else {
 					// Add resource to the list
 					FString type;
 					hcSub.uClass->GetDescription(&type);
-					if (name.StartsWith("StoneHarvestComponent"))
-						type.Append(" (Rock)");
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 			}
@@ -331,7 +325,6 @@ void dumpAnimals() {
 			json["Animals"][name.ToString()]["XP"] = n->XPEarnMultiplierField() * n->KillXPBaseField();
 		json["Animals"][name.ToString()]["XPperHit"] = n->bGiveXPPerHit().Get();
 
-
 		if (n->DeathHarvestingComponentField().uClass) {
 			auto harv = static_cast<UPrimalHarvestingComponent*>(n->DeathHarvestingComponentField().uClass->GetDefaultObject(true));
 			if (!harv)
@@ -378,8 +371,7 @@ void extract(float a2) {
 
 	TArray<AActor*> found_actors;
 
-	// Loop all actors first time to find overrides and things we are interested in
-	std::unordered_map<std::string, UClass*> OverrideClasses;
+	// Loop all actors first time to find things we are interested in
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		actor->BeginPlay();
@@ -416,7 +408,7 @@ void extract(float a2) {
 
 			char buff[200];
 			nlohmann::json locations;
-			bool found;
+			bool found = false;
 			for (auto spawnVolume : zm->LinkedZoneSpawnVolumeEntriesField()) {
 				if (spawnVolume.LinkedZoneSpawnVolume) {
 					found = true;
@@ -581,34 +573,13 @@ void extract(float a2) {
 				json["Stones"]["Stone " + s.ToString()] = { gps.X, gps.Y };
 			}
 		}
-
-		// RESOURCE OVERRIDES
-		// Build list of class overrides for foliage
-		if (name.Contains("FoliageOverride")) {
-			std::string island = GetIslandName(name.ToString());
-			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
-			dz->BeginPlay(a2);
-			for (auto o : dz->FoliageAttachmentOverrides()) {
-				FString name;
-				o.ForFoliageTypeName.ToString(&name);
-				//Log::GetLog()->info("override {}", name.ToString());
-				OverrideClasses[island + "_" + name.ToString()] = o.OverrideActorComponent.uClass;
-			}
-			for (auto o : dz->FoliageOverrideMap()) {
-				FString key, value;
-
-				o.Key.ToString(&key);
-				//Log::GetLog()->info("override map {} {}", key.ToString(), stringrepresentation(o.Value.uClass));
-				OverrideClasses[island + "_" + key.ToString()] = o.Value.uClass;
-			}
-		}
 	}
 	found_actors.Empty();
 
 	// Find actual resources, maps, and meshes
 	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses = getHarvestableClasses();
-	std::unordered_map<std::string, std::unordered_map<std::string, int>> resources;
-	std::unordered_map<std::string, std::unordered_map<std::string, int>> assets;
+	std::unordered_map<std::string, std::unordered_map<std::string, long long>> resources;
+	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assets;
 	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
 	std::unordered_map<std::string, std::vector<std::string>> meshes;
 
@@ -620,30 +591,26 @@ void extract(float a2) {
 	for (auto object : objects) {
 		auto n = reinterpret_cast<UInstancedStaticMeshComponent*> (object);
 
-		FString name;
-		object->GetPathName(&name, NULL);
 		if (n) {
+			FString name;
+			n->GetFullName(&name, NULL);
+			
+
 			// Get the override key
 			auto level = n->GetComponentLevel();
 			FString lvlname;
 			level->GetFullName(&lvlname, NULL);
 			std::string island = GetIslandName(lvlname.ToString());
-			std::string overrideSettings = island + "_" + name.ToString();
-
-			// Get the base and override with any applicable resources
-			auto nSub = n->AttachedComponentClassField().uClass;
-			if (OverrideClasses.find(overrideSettings) != OverrideClasses.end()) {
-				nSub = OverrideClasses[overrideSettings];
-			}
 
 			auto u = n->FoliageTypeReferenceField();
-			if (u) {
-				u->NameField().ToString(&name);
-				TSubclassOf<UActorComponent> result;
-				gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
-				nSub = result.uClass;
-			}
+			if (!u)
+				continue;
 
+			u->NameField().ToString(&name);
+			TSubclassOf<UActorComponent> result;
+			gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
+			auto nSub = result.uClass;
+			
 			if (nSub) {
 				// Get GPS Coords
 				FVector vec;
