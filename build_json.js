@@ -13,13 +13,13 @@ const worldUnitsX = xGrids * serverConfig.gridSize;
 const worldUnitsY = yGrids * serverConfig.gridSize;
 
 if (!process.argv.includes("nobuild")) {
-  process.chdir('DumpResources');
-  for (let y = 0; y < yGrids; y++) {
-    for (let x = 0; x < xGrids; x++) {
-      execSync("start /min " + process.cwd() + `\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer`)
+    process.chdir('DumpResources');
+    for (let y = 0; y < yGrids; y++) {
+        for (let x = 0; x < xGrids; x++) {
+            execSync("start /min " + process.cwd() + `\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5001?Port=5002?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer`)
+        }
     }
-  }
-  process.chdir(workDir);
+    process.chdir(workDir);
 }
 
 // load resources
@@ -28,38 +28,38 @@ let stones = [];
 let bosses = [];
 let altars = [];
 for (let x = 0; x < xGrids; x++) {
-  for (let y = 0; y < yGrids; y++) {
-    let grid = helpers.gridName(x, y);
-    grids[grid] = helpers.parseJSONFile(resourceDir + grid + ".json");
+    for (let y = 0; y < yGrids; y++) {
+        let grid = helpers.gridName(x, y);
+        grids[grid] = helpers.parseJSONFile(resourceDir + grid + ".json");
 
-    // save power stones
-    if (grids[grid]["Stones"])
-      for (stone in grids[grid]["Stones"])
-        stones.push({
-          name: stone,
-          long: grids[grid]["Stones"][stone][0],
-          lat: grids[grid]["Stones"][stone][1],
-        });
+        // save power stones
+        if (grids[grid]["Stones"])
+            for (stone in grids[grid]["Stones"])
+                stones.push({
+                    name: stone,
+                    long: grids[grid]["Stones"][stone][0],
+                    lat: grids[grid]["Stones"][stone][1],
+                });
 
-    // save bosses
-    if (grids[grid]["Boss"])
-      for (boss in grids[grid]["Boss"])
-        for (position in grids[grid]["Boss"][boss])
-          bosses.push({
-            name: boss,
-            long: grids[grid]["Boss"][boss][position][0],
-            lat: grids[grid]["Boss"][boss][position][1],
-          });
-    // save altars
-    if (grids[grid]["Altar"])
-      for (altar in grids[grid]["Altar"])
-        for (position in grids[grid]["Altar"][altar])
-          altars.push({
-            name: altar,
-            long: grids[grid]["Altar"][altar][position][0],
-            lat: grids[grid]["Altar"][altar][position][1],
-          });          
-  }
+        // save bosses
+        if (grids[grid]["Boss"])
+            for (boss in grids[grid]["Boss"])
+                for (position in grids[grid]["Boss"][boss])
+                    bosses.push({
+                        name: boss,
+                        long: grids[grid]["Boss"][boss][position][0],
+                        lat: grids[grid]["Boss"][boss][position][1],
+                    });
+        // save altars
+        if (grids[grid]["Altar"])
+            for (altar in grids[grid]["Altar"])
+                for (position in grids[grid]["Altar"][altar])
+                    altars.push({
+                        name: altar,
+                        long: grids[grid]["Altar"][altar][position][0],
+                        lat: grids[grid]["Altar"][altar][position][1],
+                    });
+    }
 }
 let animalcheck = new Set();
 let allassets = new Set();
@@ -68,196 +68,220 @@ let islands = {};
 let islandExtended = {};
 let gridList = {};
 let islandList = {};
+let regions = {};
 for (let server in serverConfig.servers) {
-  let s = serverConfig.servers[server];
-  let grid = helpers.gridName(s.gridX, s.gridY);
+    let s = serverConfig.servers[server];
+    let grid = helpers.gridName(s.gridX, s.gridY);
 
-  gridList[grid] = {};
-  gridList[grid].name = s.name;
-  gridList[grid].region = s.hiddenAtlasId;
-  gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
-  gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
-  gridList[grid].serverTemplate = s.serverTemplateName;
-  gridList[grid].serverIslandPointsMultiplier = s.serverIslandPointsMultiplier;
-  gridList[grid].forceServerRules = s.forceServerRules;
-
-  gridList[grid].biomes = new Set();
-
-  for (let island in s.islandInstances) {
-    let cp = s.islandInstances[island];
-    let i = {
-      id: cp.id,
-      worldX: cp.worldX,
-      worldY: cp.worldY,
-      rotation: cp.rotation,
-      name: cp.name,
-      region: s.hiddenAtlasId,
-      islandWidth: cp.islandWidth,
-      islandHeight: cp.islandHeight,
-      isControlPoint: cp.isControlPoint,
-    };
-    i.sublevels = [];
-    for (let sl in s.sublevels) {
-      let sublevel = s.sublevels[sl];
-      if (sublevel.id == i.id) {
-        i.sublevels.push(sublevel.name);
-      }
+    gridList[grid] = {};
+    gridList[grid].name = s.name;
+    gridList[grid].region = s.hiddenAtlasId;
+    if (gridList[grid].region = "") {
+        gridList[grid].region = "Rookie Cove";
     }
-    islands[i.id] = i;
+    gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
+    gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
+    gridList[grid].serverTemplate = s.serverTemplateName;
+    gridList[grid].serverIslandPointsMultiplier = s.serverIslandPointsMultiplier;
+    gridList[grid].forceServerRules = s.forceServerRules;
 
-    i.grid = grid;
-    i.homeServer = s.isHomeServer ? true : false;
-    i.resources = {};
-    i.discoveries = [];
+    if (typeof regions[s.hiddenAtlasId] === 'undefined') {
+        regions[s.hiddenAtlasId] = {
+            MinX: s.gridX,
+            MinY: s.gridY,
+            MaxX: s.gridX,
+            MaxY: s.gridY,
+        }
+    } else {
+        let r = regions[s.hiddenAtlasId];
+        if (r.MinX > s.gridX)
+            r.MinX = s.gridX;
+        if (r.MinY > s.gridY)
+            r.MinY = s.gridY;
+        if (r.MaxX < s.gridX)
+            r.MaxX = s.gridX;
+        if (r.MaxY < s.gridY)
+            r.MaxY = s.gridY;
+    }
 
-    gridBiomes = new Set();
-    gridAnimals = new Set();
-    gridResources = new Set();
-    if (s.serverTemplateName)
-      gridBiomes.add(s.serverTemplateName)
+    gridList[grid].biomes = new Set();
 
-    if (i.treasureMapSpawnPoints && i.treasureMapSpawnPoints.length > 0)
-      i.resources["Treasure Spawns"] = i.treasureMapSpawnPoints.length;
+    for (let island in s.islandInstances) {
+        let cp = s.islandInstances[island];
+        let i = {
+            id: cp.id,
+            worldX: cp.worldX,
+            worldY: cp.worldY,
+            rotation: cp.rotation,
+            name: cp.name,
+            region: s.hiddenAtlasId,
+            islandWidth: cp.islandWidth,
+            islandHeight: cp.islandHeight,
+            isControlPoint: cp.isControlPoint,
+        };
+        i.sublevels = [];
+        for (let sl in s.sublevels) {
+            let sublevel = s.sublevels[sl];
+            if (sublevel.id == i.id) {
+                i.sublevels.push(sublevel.name);
+            }
+        }
+        islands[i.id] = i;
 
-    // build resource map
-    for (let r in grids[grid].Resources) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
-        for (let key in grids[grid].Resources[r]) {
-          gridResources.add(key);
-          if (!i.resources[key])
-            i.resources[key] = grids[grid].Resources[r][key];
-          else
-            i.resources[key] += grids[grid].Resources[r][key];
+        i.grid = grid;
+        i.homeServer = s.isHomeServer ? true : false;
+        i.resources = {};
+        i.discoveries = [];
+
+        gridBiomes = new Set();
+        gridAnimals = new Set();
+        gridResources = new Set();
+        if (s.serverTemplateName)
+            gridBiomes.add(s.serverTemplateName)
+
+        if (i.treasureMapSpawnPoints && i.treasureMapSpawnPoints.length > 0)
+            i.resources["Treasure Spawns"] = i.treasureMapSpawnPoints.length;
+
+        // build resource map
+        for (let r in grids[grid].Resources) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+                for (let key in grids[grid].Resources[r]) {
+                    gridResources.add(key);
+                    if (!i.resources[key])
+                        i.resources[key] = grids[grid].Resources[r][key];
+                    else
+                        i.resources[key] += grids[grid].Resources[r][key];
+                }
+        }
+
+        // build animal list
+        let allanimals = new Set();
+        for (let r in grids[grid].Animals) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+                for (let key in grids[grid].Animals[r]) {
+                    let animalList = grids[grid].Animals[r][key];
+                    if (process.argv.includes("debug"))
+                        if (
+                            animalList.levelOffset < 60 &&
+                            (animalList.levelLerp > 0.0 || animalList.levelOffset > 0 || animalList.levelMultiplier > 1.0 || animalList.islandLevelMultiplier > 1.0 || animalList.islandLevelOffset > 0 || animalList.levelMinOveride > 0))
+                            console.log(grid, animalList.levelLerp, animalList.levelOffset, animalList.levelMultiplier, animalList.islandLevelMultiplier, animalList.islandLevelOffset, animalList.levelMinOveride)
+                            // print out high spawns
+                    if (process.argv.includes("debug"))
+                        if (animalList.spawnLimits[0] >= 25 && animalList.animals[0].name == "Bear")
+                            console.log(animalList.animals[0].name, animalList.gps[0], animalList.spawnLimits)
+
+                    for (let a in animalList.animals) {
+                        let animal = animalList.animals[a]
+                        gridAnimals.add(animal.name);
+                        allanimals.add(animal.name);
+                        animalcheck.add(animal.name);
+
+                        // print out special animals, check for changes
+                        if (process.argv.includes("debug"))
+                            if (animal.minLevelMultiplier || animal.maxLevelMultiplier || animal.minLevelOffset || animal.maxLevelOffset || animal.overrideLevel)
+                                console.log(animal)
+                    }
+                }
+        }
+        i.animals = Array.from(allanimals).sort();
+
+        for (let r in grids[grid].Maps) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+                i.maps = grids[grid].Maps[r];
+        }
+
+        for (let r in s.discoZones) {
+            let disco = s.discoZones[r];
+
+            if (disco.ManualVolumeName) {
+                let d = grids[grid].Discoveries[disco.ManualVolumeName];
+                if (d) {
+                    i.discoveries.push({
+                        name: disco.name,
+                        long: d[0],
+                        lat: d[1],
+                    });
+                }
+            } else {
+                if (helpers.inside(i, [disco.worldX, disco.worldY])) {
+                    let coords = worldToGPS(disco.worldX, disco.worldY);
+                    i.discoveries.push({
+                        name: disco.name,
+                        long: coords[0],
+                        lat: coords[1],
+                    });
+                }
+            }
+        }
+
+        let biomes = new Set();
+        let biomeTags = new Set();
+        for (let r in grids[grid].Biomes) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
+                biomes.add(grids[grid].Biomes[r]);
+                for (let b in grids[grid].Biomes[r].tags) {
+                    biomeTags.add(grids[grid].Biomes[r].tags[b]);
+                }
+            }
+            gridBiomes.add(grids[grid].Biomes[r].name);
+        }
+
+        i.biomes = Array.from(biomes).sort();
+        i.biomeTags = Array.from(biomeTags).sort();
+
+        islandExtended[i.id] = helpers.clone(i);
+        i = islandExtended[i.id];
+        for (let r in grids[grid].Meshes) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+                i.meshes = grids[grid].Meshes[r];
+        }
+        // build resource map
+        i.assets = {};
+        for (let r in grids[grid].Assets) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
+                for (let key in grids[grid].Assets[r]) {
+                    if (!i.assets[key]) {
+                        allassets.add(key);
+                        i.assets[key] = grids[grid].Assets[r][key];
+                    } else {
+                        i.assets[key] += grids[grid].Assets[r][key];
+                    }
+                }
+            }
         }
     }
 
-    // build animal list
-    let allanimals = new Set();
-    for (let r in grids[grid].Animals) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
-        for (let key in grids[grid].Animals[r]) {
-          let animalList = grids[grid].Animals[r][key];
-          if (process.argv.includes("debug"))
-            if (
-              animalList.levelOffset < 60 &&
-              (animalList.levelLerp > 0.0 || animalList.levelOffset > 0 || animalList.levelMultiplier > 1.0 || animalList.islandLevelMultiplier > 1.0 || animalList.islandLevelOffset > 0 || animalList.levelMinOveride > 0))
-              console.log(grid, animalList.levelLerp, animalList.levelOffset, animalList.levelMultiplier, animalList.islandLevelMultiplier, animalList.islandLevelOffset, animalList.levelMinOveride)
-          // print out high spawns
-          if (process.argv.includes("debug"))
-            if (animalList.spawnLimits[0] >= 25 && animalList.animals[0].name == "Bear")
-              console.log(animalList.animals[0].name, animalList.gps[0], animalList.spawnLimits)
-
-          for (let a in animalList.animals) {
-            let animal = animalList.animals[a]
-            gridAnimals.add(animal.name);
-            allanimals.add(animal.name);
-            animalcheck.add(animal.name);
-
-            // print out special animals, check for changes
-            if (process.argv.includes("debug"))
-              if (animal.minLevelMultiplier || animal.maxLevelMultiplier || animal.minLevelOffset || animal.maxLevelOffset || animal.overrideLevel)
-                console.log(animal)
-          }
-        }
-    }
-    i.animals = Array.from(allanimals).sort();
-
-    for (let r in grids[grid].Maps) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
-        i.maps = grids[grid].Maps[r];
-    }
-
-    for (let r in s.discoZones) {
-      let disco = s.discoZones[r];
-
-      if (disco.ManualVolumeName) {
-        let d = grids[grid].Discoveries[disco.ManualVolumeName];
-        if (d) {
-          i.discoveries.push({
-            name: disco.name,
-            long: d[0],
-            lat: d[1],
-          });
-        }
-      } else {
-        if (helpers.inside(i, [disco.worldX, disco.worldY])) {
-          let coords = worldToGPS(disco.worldX, disco.worldY);
-          i.discoveries.push({
-            name: disco.name,
-            long: coords[0],
-            lat: coords[1],
-          });
-        }
-      }
-    }
-
-    let biomes = new Set();
-    let biomeTags = new Set();
-    for (let r in grids[grid].Biomes) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
-        biomes.add(grids[grid].Biomes[r]);
-        for (let b in grids[grid].Biomes[r].tags) {
-          biomeTags.add(grids[grid].Biomes[r].tags[b]);
-        }
-      }
-      gridBiomes.add(grids[grid].Biomes[r].name);
-    }
-
-    i.biomes = Array.from(biomes).sort();
-    i.biomeTags = Array.from(biomeTags).sort();
-
-    islandExtended[i.id] = helpers.clone(i);
-    i = islandExtended[i.id];
-    for (let r in grids[grid].Meshes) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
-        i.meshes = grids[grid].Meshes[r];
-    }
-    // build resource map
-    i.assets = {};
-    for (let r in grids[grid].Assets) {
-      if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
-        for (let key in grids[grid].Assets[r]) {
-          if (!i.assets[key]) {
-            allassets.add(key);
-            i.assets[key] = grids[grid].Assets[r][key];
-          } else {
-            i.assets[key] += grids[grid].Assets[r][key];
-          }
-        }
-      } 
-    }
-  }
-
-  gridList[grid].biomes = Array.from(gridBiomes);
-  gridList[grid].animals = Array.from(gridAnimals).sort();
-  gridList[grid].resources = Array.from(gridResources).sort();
-  gridList[grid].sotd = grids[grid].SoTD;
-  gridList[grid].flotsam = grids[grid].Flotsam;
-  gridList[grid].sunktreasure = grids[grid].SunkenTreasure;
+    gridList[grid].biomes = Array.from(gridBiomes);
+    gridList[grid].animals = Array.from(gridAnimals).sort();
+    gridList[grid].resources = Array.from(gridResources).sort();
+    gridList[grid].sotd = grids[grid].SoTD;
+    gridList[grid].flotsam = grids[grid].Flotsam;
+    gridList[grid].sunktreasure = grids[grid].SunkenTreasure;
 }
 
 if (process.argv.includes("debug"))
-  for (let a in Array.from(animalcheck))
-    console.log(Array.from(animalcheck)[a])
+    for (let a in Array.from(animalcheck))
+        console.log(Array.from(animalcheck)[a])
 
 
 //stop();
 
 // save everything
 fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjByKey({
-  ServersX: serverConfig.totalGridsX,
-  ServersY: serverConfig.totalGridsY,
-  GridSize: serverConfig.gridSize,
+    ServersX: serverConfig.totalGridsX,
+    ServersY: serverConfig.totalGridsY,
+    GridSize: serverConfig.gridSize,
 }), null, "\t"));
 
 fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
 fs.copyFileSync(resourceDir + "items.json", './json/items.json');
+fs.copyFileSync(resourceDir + "loottable.json", './json/loottable.json');
 fs.copyFileSync(resourceDir + "structures.json", './json/structures.json');
-
 
 fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, "\t"));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, "\t"));
 fs.writeFileSync('./json/altars.json', JSON.stringify(sortObjByKey(altars), null, "\t"));
+fs.writeFileSync('./json/regions.json', JSON.stringify(sortObjByKey(regions), null, "\t"));
 fs.writeFileSync('./json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, "\t"));
 fs.writeFileSync('./json/islands.json', JSON.stringify(sortObjByKey(islands), null, "\t"));
 fs.writeFileSync('./json/islandExtended.json', JSON.stringify(sortObjByKey(islandExtended), null, "\t"));
@@ -280,27 +304,27 @@ function GPSToWorld(x, y) {
 }*/
 
 function worldToGPS(x, y) {
-  let long = ((x / worldUnitsX) * 550) - 100;
-  let lat = 100 - ((y / worldUnitsY) * 550);
-  return [long, lat];
+    let long = ((x / worldUnitsX) * 550) - 100;
+    let lat = 100 - ((y / worldUnitsY) * 550);
+    return [long, lat];
 }
 
 function GPSToWorld(x, y) {
-  let long = ((x + 100) / 550) * worldUnitsX;
-  let lat = ((-y + 100) / 550) * worldUnitsY;
-  return [long, lat];
+    let long = ((x + 100) / 550) * worldUnitsX;
+    let lat = ((-y + 100) / 550) * worldUnitsY;
+    return [long, lat];
 }
 
 function sortObjByKey(value) {
-  return (typeof value === 'object') ?
-    (Array.isArray(value) ?
-      value.map(sortObjByKey) :
-      Object.keys(value).sort().reduce(
-        (o, key) => {
-          const v = value[key];
-          o[key] = sortObjByKey(v);
-          return o;
-        }, {})
-    ) :
-    value;
+    return (typeof value === 'object') ?
+        (Array.isArray(value) ?
+            value.map(sortObjByKey) :
+            Object.keys(value).sort().reduce(
+                (o, key) => {
+                    const v = value[key];
+                    o[key] = sortObjByKey(v);
+                    return o;
+                }, {})
+        ) :
+        value;
 }
