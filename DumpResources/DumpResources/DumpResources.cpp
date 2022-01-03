@@ -17,12 +17,35 @@ DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FStrin
 DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
 DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
 
+//DECLARE_HOOK(APrimalStructureSeating_DriverSeat_UpdateDesiredDir, void, APrimalStructureSeating_DriverSeat*, FVector2D);
+
+static void GPSBounds() {
+	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
+	FVector vec;
+	FVector2D res;
+	nlohmann::json json;
+	vec.X = grid->TotalGridsXField() * (grid->GridSizeField());
+	vec.Y = grid->TotalGridsYField() * (grid->GridSizeField());
+
+	grid->GlobalLocationToGPSLocation(&res, FVector(0,0,0));
+	json["min"] = { res.X, res.Y };
+	
+	grid->GlobalLocationToGPSLocation(&res, vec);
+	json["max"] = { res.X, res.Y };
+
+	std::filesystem::create_directory("resources");
+	std::ofstream file("resources/gpsbounds.json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
+};
+
+
 static const std::string ServerGrid() {
 	// Get server grid 
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
 	const char* x[15] = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O" };
 	const char* y[15] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15" };
-
 	std::string gridStr = x[grid->GetCurrentServerInfo()->gridXField()];
 	gridStr += y[grid->GetCurrentServerInfo()->gridYField()];
 	return gridStr;
@@ -120,7 +143,7 @@ void dumpItems() {
 	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
 		
 	const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
-
+	
 	for (auto object : types) {
 		auto n = static_cast<UPrimalItem*> (object);
 		FString name;
@@ -138,8 +161,9 @@ void dumpItems() {
 		if (n->ItemIconField())
 			json[name.ToString()]["Icon"] = getIconName(n->ItemIconField());
 
+		json[name.ToString()]["Name"] = n->DescriptiveNameBaseField().ToString();
+
 		if (n->UseItemAddCharacterStatusValuesField().Num()) {
-			json[name.ToString()] = nullptr;
 				for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
 				json[name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
 					{"add", stat.BaseAmountToAdd},
@@ -160,7 +184,6 @@ void dumpItems() {
 					pi->GetItemName(&type, false, true, NULL);
 					type = fixName(type);
 					json[name.ToString()]["Ingredients"][type.ToString()] = res.BaseResourceRequirement;
-					
 				}
 			}
 		}
@@ -207,17 +230,69 @@ nlohmann::json getDiscoveries(UWorld* World) {
 	return json;
 }
 
+nlohmann::json getLootSets(FSupplyCrateItemSet* set) {
+	nlohmann::json json;
+	int count = 0;
+	for (auto entry : set->ItemEntries) {
+		auto entryName = entry.ItemEntryName.ToString();
+		json[count]["ForceBlueprint"] = entry.bForceBlueprint;
+		json[count]["Weight"] = entry.EntryWeight;
+		json[count]["ChanceForItem"] = entry.ChanceToActuallyGiveItem;
+		json[count]["ChanceForBlueprint"] = entry.ChanceToBeBlueprintOverride;
+		json[count]["MaxQuality"] = entry.MaxQuality;
+		json[count]["MaxQuantity"] = entry.MaxQuantity;
+		json[count]["MinQuality"] = entry.MinQuality;
+		json[count]["MinQuantity"] = entry.MinQuantity;
+		json[count]["QualityPower"] = entry.QualityPower;
+		json[count]["QuantityPower"] = entry.QuantityPower;
+
+		for (auto item : entry.Items) {
+			if (item.uClass && item.uClass->ClassDefaultObjectField()) {
+				auto i = static_cast<UPrimalItem*> (item.uClass->ClassDefaultObjectField());
+				FString itemName;
+				i->GetItemName(&itemName, false, true, NULL);
+				json[count]["Items"].push_back(fixName(itemName).ToString());
+			}
+		}
+		count++;
+	}
+	return json;
+}
+
 void dumpLootTables() {
 	Log::GetLog()->info("Dump Loot Tables");
+	nlohmann::json json;
+	json["Loot"] = nullptr;
+
 	TArray<UObject*> objects;
-	Globals::GetObjectsOfClass(UPrimalSupplyCrateItemSets::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
+	Globals::GetObjectsOfClass(UPrimalSupplyCrateItemSet::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
-		Log::GetLog()->info("loot set found ");
-		auto n = static_cast<UPrimalSupplyCrateItemSets*> (object);
-		for (auto table : n->ItemSetsField()) {
-			Log::GetLog()->info("loot set {} ", table.SetName.ToString());
+		auto n = static_cast<UPrimalSupplyCrateItemSet*> (object);
+		FString name;
+		n->NameField().ToString(&name);
+		name = fixName(name);
+		json["Loot"][name.ToString()] = getLootSets(&n->ItemSetField());
+	}
+
+	objects.Empty();
+	Globals::GetObjectsOfClass(UPrimalInventoryComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
+	for (auto object : objects) {
+		auto n = static_cast<UPrimalInventoryComponent*> (object);
+		if (n->ItemSetsField().Num() > 0) {
+			FString name;
+			n->NameField().ToString(&name);
+			name = fixName(name);
+			Log::GetLog()->info("Loot Ref {} ", name.ToString());
+			for (auto set : n->ItemSetsField()) {
+				json["Loot"][name.ToString()] = getLootSets(&set);
+			}
 		}
 	}
+
+	std::ofstream file("resources/loottable.json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
 }
 
 // Build map of harvestable classes
@@ -356,7 +431,8 @@ void extract(float a2) {
 	nlohmann::json json;
 
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
-	// Save Items.
+
+	GPSBounds();
 	dumpItems();
 	dumpStructures();
 	dumpLootTables();
@@ -685,16 +761,29 @@ void extract(float a2) {
 		FString name;
 		
 		actor->GetFullName(&name, NULL);
-		
+
 		// Find the new altars
-		if (name.Contains("StructurePlaceHolder_StaticNode_C")) {
+		if (name.Contains("Damned")) {
+			Log::GetLog()->info(" placeholder {} ", name.ToString());
+			auto gps = ActorGPS(actor);
+			auto tags = actor->TagsField();
+			actor->NameField().ToString(&name);
+			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
+			if (name.Contains("DamnedAltar"))
+				json["Altar"]["Damned Altar"].push_back({ gps.X, gps.Y });
+			else
+				json["Altar"]["AoTD Altar"].push_back({ gps.X, gps.Y });
+		}
+
+		// Find the new altars
+		/*if (name.Contains("StructurePlaceHolder_StaticNode_C")) {
 			Log::GetLog()->info(" placeholder {} ", name.ToString());
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
 			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(),name.ToString(), gps.X, gps.Y);
 			json["Altar"][name.ToString()].push_back({ gps.X, gps.Y });
-		}
+		}*/
 
 		if (
 			name.Contains("HierarchicalInstancedStaticMeshActor") &&
@@ -798,6 +887,12 @@ void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString Comman
 	AShooterGameMode_InitOptionBool_original(This, CommandLine, Section, Option, CurrentValue);
 }
 
+/*void Hook_APrimalStructureSeating_DriverSeat_UpdateDesiredDir(APrimalStructureSeating_DriverSeat* This, FVector2D dir) {
+	Log::GetLog()->info("update dir {}  {}", dir.X, dir.Y);
+	APrimalStructureSeating_DriverSeat_UpdateDesiredDir_original(This, dir);
+}*/
+
+
 void Load() {
 	Log::Get().Init("DumpResources");
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
@@ -806,6 +901,8 @@ void Load() {
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger, &AShooterGameMode_InitOptionInteger_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat, &AShooterGameMode_InitOptionFloat_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool, &AShooterGameMode_InitOptionBool_original);
+
+	//ArkApi::GetHooks().SetHook("APrimalStructureSeating_DriverSeat.UpdateDesiredDir", &Hook_APrimalStructureSeating_DriverSeat_UpdateDesiredDir, &APrimalStructureSeating_DriverSeat_UpdateDesiredDir_original);
 
 }
 

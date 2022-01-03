@@ -11,6 +11,7 @@ const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
 const worldUnitsY = yGrids * serverConfig.gridSize;
+const gpsBounds = helpers.parseJSONFile(resourceDir + "gpsbounds.json");
 
 if (!process.argv.includes("nobuild")) {
     process.chdir('DumpResources');
@@ -76,7 +77,7 @@ for (let server in serverConfig.servers) {
     gridList[grid] = {};
     gridList[grid].name = s.name;
     gridList[grid].region = s.hiddenAtlasId;
-    if (gridList[grid].region = "") {
+    if (gridList[grid].region == "") {
         gridList[grid].region = "Rookie Cove";
     }
     gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
@@ -144,7 +145,7 @@ for (let server in serverConfig.servers) {
 
         // build resource map
         for (let r in grids[grid].Resources) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds)))
                 for (let key in grids[grid].Resources[r]) {
                     gridResources.add(key);
                     if (!i.resources[key])
@@ -157,7 +158,7 @@ for (let server in serverConfig.servers) {
         // build animal list
         let allanimals = new Set();
         for (let r in grids[grid].Animals) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds)))
                 for (let key in grids[grid].Animals[r]) {
                     let animalList = grids[grid].Animals[r][key];
                     if (process.argv.includes("debug"))
@@ -186,7 +187,7 @@ for (let server in serverConfig.servers) {
         i.animals = Array.from(allanimals).sort();
 
         for (let r in grids[grid].Maps) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds)))
                 i.maps = grids[grid].Maps[r];
         }
 
@@ -204,7 +205,7 @@ for (let server in serverConfig.servers) {
                 }
             } else {
                 if (helpers.inside(i, [disco.worldX, disco.worldY])) {
-                    let coords = worldToGPS(disco.worldX, disco.worldY);
+                    let coords = worldToGPS(disco.worldX, disco.worldY, gpsBounds);
                     i.discoveries.push({
                         name: disco.name,
                         long: coords[0],
@@ -217,7 +218,7 @@ for (let server in serverConfig.servers) {
         let biomes = new Set();
         let biomeTags = new Set();
         for (let r in grids[grid].Biomes) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds))) {
                 biomes.add(grids[grid].Biomes[r]);
                 for (let b in grids[grid].Biomes[r].tags) {
                     biomeTags.add(grids[grid].Biomes[r].tags[b]);
@@ -232,13 +233,13 @@ for (let server in serverConfig.servers) {
         islandExtended[i.id] = helpers.clone(i);
         i = islandExtended[i.id];
         for (let r in grids[grid].Meshes) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]))))
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds)))
                 i.meshes = grids[grid].Meshes[r];
         }
         // build resource map
         i.assets = {};
         for (let r in grids[grid].Assets) {
-            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1])))) {
+            if (helpers.inside(i, GPSToWorld(Number(r.split(":")[0]), Number(r.split(":")[1]), gpsBounds))) {
                 for (let key in grids[grid].Assets[r]) {
                     if (!i.assets[key]) {
                         allassets.add(key);
@@ -271,6 +272,7 @@ fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjB
     ServersX: serverConfig.totalGridsX,
     ServersY: serverConfig.totalGridsY,
     GridSize: serverConfig.gridSize,
+    GPSBounds: gpsBounds,
 }), null, "\t"));
 
 fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
@@ -290,28 +292,26 @@ fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConf
 fs.writeFileSync('./json/tradeWinds.json', JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, "\t"));
 fs.writeFileSync('./json/portals.json', JSON.stringify(sortObjByKey(serverConfig.portalPaths), null, "\t"));
 
-/*
-function worldToGPS(x, y) {
-  let long = ((x / worldUnitsX) * 200) - 100;
-  let lat = 100 - ((y / worldUnitsY) * 200);
-  return [long, lat];
-}
+/*"GPSBounds": {
+    "max": [
+        450,
+        -450
+    ],
+    "min": [
+        -100,
+        100
+    ]
+},*/
 
-function GPSToWorld(x, y) {
-  let long = ((x + 100) / 200) * worldUnitsX;
-  let lat = ((-y + 100) / 200) * worldUnitsY;
-  return [long, lat];
-}*/
-
-function worldToGPS(x, y) {
-    let long = ((x / worldUnitsX) * 550) - 100;
-    let lat = 100 - ((y / worldUnitsY) * 550);
+function worldToGPS(x, y, bounds) {
+    let long = ((x / worldUnitsX) * Math.abs(bounds.min[0] - bounds.max[0])) + bounds.min[0];
+    let lat = bounds.min[1] - ((y / worldUnitsY) * Math.abs(bounds.min[1] - bounds.max[1]));
     return [long, lat];
 }
 
-function GPSToWorld(x, y) {
-    let long = ((x + 100) / 550) * worldUnitsX;
-    let lat = ((-y + 100) / 550) * worldUnitsY;
+function GPSToWorld(x, y, bounds) {
+    let long = ((x - bounds.min[0]) / Math.abs(bounds.min[0] - bounds.max[0])) * worldUnitsX;
+    let lat = ((-y + bounds.min[1]) / Math.abs(bounds.min[1] - bounds.max[1])) * worldUnitsY;
     return [long, lat];
 }
 
