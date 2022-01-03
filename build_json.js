@@ -264,9 +264,6 @@ if (process.argv.includes("debug"))
     for (let a in Array.from(animalcheck))
         console.log(Array.from(animalcheck)[a])
 
-
-//stop();
-
 // save everything
 fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjByKey({
     ServersX: serverConfig.totalGridsX,
@@ -295,17 +292,6 @@ fs.writeFileSync('./json/gridList.json', JSON.stringify(sortObjByKey(gridList), 
 fs.writeFileSync('./json/shipPaths.json', JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
 fs.writeFileSync('./json/tradeWinds.json', JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, "\t"));
 fs.writeFileSync('./json/portals.json', JSON.stringify(sortObjByKey(serverConfig.portalPaths), null, "\t"));
-
-/*"GPSBounds": {
-    "max": [
-        450,
-        -450
-    ],
-    "min": [
-        -100,
-        100
-    ]
-},*/
 
 function worldToGPS(x, y, bounds) {
     let long = ((x / worldUnitsX) * Math.abs(bounds.min[0] - bounds.max[0])) + bounds.min[0];
