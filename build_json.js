@@ -273,6 +273,10 @@ fs.writeFileSync('./json/config.js', "const config = " + JSON.stringify(sortObjB
     ServersY: serverConfig.totalGridsY,
     GridSize: serverConfig.gridSize,
     GPSBounds: gpsBounds,
+    XRange: Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
+    YRange: Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
+    XScale: 200 / Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
+    YScale: 200 / Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
 }), null, "\t"));
 
 fs.copyFileSync(resourceDir + "animals.json", './json/animals.json');
