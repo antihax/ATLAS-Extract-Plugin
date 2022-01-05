@@ -295,6 +295,31 @@ void dumpLootTables() {
 	file.close();
 }
 
+// Build map of override classes
+std::unordered_map<std::string, UClass*> getOverrideClasses() {
+	TArray<AActor*> found_actors;
+	// Build a map of all override resources and their resulting class
+	std::unordered_map<std::string, UClass*> OverrideClasses;
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
+		AActor::GetPrivateStaticClass(NULL), &found_actors);
+	for (auto actor : found_actors) {
+		FString name;
+		actor->GetFullName(&name, NULL);
+
+		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
+		if (name.Contains("FoliageOverride")) {
+			std::string island = GetIslandName(name.ToString());
+			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
+			for (auto oxr : dz->FoliageAttachmentOverrides()) {
+				FString name;
+				oxr.ForFoliageTypeName.ToString(&name);
+				OverrideClasses[island + "_" + name.ToString()] = oxr.OverrideActorComponent.uClass;
+			}
+		}
+	}
+	return OverrideClasses;
+}
+
 // Build map of harvestable classes
 std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 	TArray<UObject*> objects;
@@ -324,7 +349,6 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 			}
 		}
 	}
-	objects.Empty();
 	return harvestableClasses;
 }
 
@@ -653,7 +677,8 @@ void extract(float a2) {
 	found_actors.Empty();
 
 	// Find actual resources, maps, and meshes
-	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses = getHarvestableClasses();
+	auto overrideClasses = getOverrideClasses();
+	auto harvestableClasses = getHarvestableClasses();
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> resources;
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assets;
 	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
@@ -670,7 +695,6 @@ void extract(float a2) {
 		if (n) {
 			FString name;
 			n->GetFullName(&name, NULL);
-			
 
 			// Get the override key
 			auto level = n->GetComponentLevel();
@@ -683,16 +707,30 @@ void extract(float a2) {
 				continue;
 
 			u->NameField().ToString(&name);
+		
 			TSubclassOf<UActorComponent> result;
 			gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
+
 			auto nSub = result.uClass;
-			
+			if (!nSub) {
+				// Find old override
+				nSub = n->AttachedComponentClassField().uClass;
+
+				std::string island = GetIslandName(lvlname.ToString());
+				std::string overrideSettings = island + "_" + name.ToString();
+				Log::GetLog()->info("Override {}", overrideSettings);
+				if (overrideClasses.find(overrideSettings) != overrideClasses.end()) {
+					nSub = overrideClasses[overrideSettings];
+				}
+			}
+
 			if (nSub) {
 				// Get GPS Coords
 				FVector vec;
 				n->GetWorldLocation(&vec);
 				const FVector2D loc = VectorGPS(vec);
 				auto count = n->GetInstanceCount();
+				Log::GetLog()->info("	loc c {} - {} {}", count, loc.X, loc.Y);
 				// Don't add 0 counts
 				if (count > 0) {
 					// Add all the harvestable classes

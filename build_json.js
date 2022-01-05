@@ -11,7 +11,6 @@ const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
 const worldUnitsY = yGrids * serverConfig.gridSize;
-const gpsBounds = helpers.parseJSONFile(resourceDir + "gpsbounds.json");
 
 if (!process.argv.includes("nobuild")) {
     process.chdir('DumpResources');
@@ -22,6 +21,9 @@ if (!process.argv.includes("nobuild")) {
     }
     process.chdir(workDir);
 }
+
+// do this after building
+const gpsBounds = helpers.parseJSONFile(resourceDir + "gpsbounds.json");
 
 // load resources
 let grids = {};
