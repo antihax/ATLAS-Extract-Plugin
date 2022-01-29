@@ -13,7 +13,9 @@ for (var island in islands) {
     for (var m in i["maps"]) {
         var map = i["maps"][m];
         if (map[1] > 16)
-            console.log(i.grid, i.name, map, i.resources['Maps'], i.animals.length, Object.keys(i.resources).length);
+            console.log(i.grid, i.name, map, i.resources['Maps'], i.sublevels.filter(function(v) {
+                return /Farth/.test(v)
+            }), Object.keys(i.resources).length);
     }
 }
 

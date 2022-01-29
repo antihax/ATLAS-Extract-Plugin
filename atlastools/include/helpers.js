@@ -1,14 +1,14 @@
 const fs = require('fs');
 module.exports = {
-    sleep: function (ms) {
+    sleep: function(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     },
 
-    stop: async function () {
+    stop: async function() {
         await this.sleep(200000000);
     },
 
-    contains: function (list, search) {
+    contains: function(list, search) {
         for (var i in search) {
             for (var x in list) {
                 if (x == search[i]) {
@@ -19,7 +19,7 @@ module.exports = {
         return false;
     },
 
-    hasType: function (list, type) {
+    hasType: function(list, type) {
         for (var x in list) {
             if (x.startsWith(type)) {
                 return true;
@@ -28,15 +28,15 @@ module.exports = {
         return false;
     },
 
-    gridName: function (x, y) {
+    gridName: function(x, y) {
         return String.fromCharCode(65 + x) + (1 + y);
     },
 
-    constraint: function (value, minVal, maxVal, minRange, maxRange) {
+    constraint: function(value, minVal, maxVal, minRange, maxRange) {
         return (((value - minVal) / (maxVal - minVal)) * (maxRange - minRange));
     },
 
-    parseJSONFile: function (file) {
+    parseJSONFile: function(file) {
         const rawdata = fs.readFileSync(file);
         return JSON.parse(rawdata);
     },
@@ -49,17 +49,17 @@ module.exports = {
                   return [long, lat];
       }*/
 
-    translateGPS: function (c) {
-        let y =  this.constraint(c[1], -450, -350, 0, 200) - 100,
-            x = this.constraint(c[0], -100, 150, 0, 200) - 100;
+    translateGPS: function(c) {
+        let y = this.constraint(c[1], -350, -150, 0, 200) - 100,
+            x = this.constraint(c[0], 200, 450, 0, 200) - 100;
 
 
-      //  console.log(x, y)
+        //  console.log(x, y)
 
         return [x, y];
     },
 
-    sortObjByKey: function (value) {
+    sortObjByKey: function(value) {
         return (typeof value === 'object') ?
             (Array.isArray(value) ?
                 value.map(sortObjByKey) :
@@ -73,7 +73,7 @@ module.exports = {
             value;
     },
 
-    clone: function (obj) {
+    clone: function(obj) {
         if (null == obj || "object" != typeof obj) return obj;
         var copy = obj.constructor();
         for (var attr in obj) {
@@ -82,7 +82,7 @@ module.exports = {
         return copy;
     },
 
-    inside: function (i, c) {
+    inside: function(i, c) {
         let
             x1 = i.worldX - (i.islandHeight / 2),
             y1 = i.worldY - (i.islandWidth / 2),
@@ -100,7 +100,7 @@ module.exports = {
         return false;
     },
 
-    distance: function (c1, c2) {
+    distance: function(c1, c2) {
         var xs = c1[0] - c2[0],
             ys = c1[1] - c2[1]
 
