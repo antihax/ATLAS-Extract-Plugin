@@ -72,16 +72,22 @@ let islandExtended = {};
 let gridList = {};
 let islandList = {};
 let regions = {};
+let regionResources = {};
+
+
+
+// DetailedResources[]
+
 for (let server in serverConfig.servers) {
     let s = serverConfig.servers[server];
     let grid = helpers.gridName(s.gridX, s.gridY);
 
     gridList[grid] = {};
     gridList[grid].name = s.name;
-    gridList[grid].region = s.hiddenAtlasId;
-    if (gridList[grid].region == "") {
-        gridList[grid].region = "Rookie Cove";
+    if (s.hiddenAtlasId == "") {
+        s.hiddenAtlasId = serverConfig.MainRegionName;
     }
+    gridList[grid].region = s.hiddenAtlasId;
     gridList[grid].serverCustomDatas1 = s.ServerCustomDatas1;
     gridList[grid].serverCustomDatas2 = s.ServerCustomDatas2;
     gridList[grid].serverTemplate = s.serverTemplateName;
