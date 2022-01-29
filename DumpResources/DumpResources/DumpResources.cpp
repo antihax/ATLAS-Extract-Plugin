@@ -17,8 +17,6 @@ DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FStrin
 DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
 DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
 
-//DECLARE_HOOK(APrimalStructureSeating_DriverSeat_UpdateDesiredDir, void, APrimalStructureSeating_DriverSeat*, FVector2D);
-
 static void GPSBounds() {
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
 	FVector vec;
@@ -282,7 +280,7 @@ void dumpLootTables() {
 			FString name;
 			n->NameField().ToString(&name);
 			name = fixName(name);
-			Log::GetLog()->info("Loot Ref {} ", name.ToString());
+			//Log::GetLog()->info("Loot Ref {} ", name.ToString());
 			for (auto set : n->ItemSetsField()) {
 				json["Loot"][name.ToString()] = getLootSets(&set);
 			}
@@ -631,7 +629,7 @@ void extract(float a2) {
 				for (const auto npc : dino.NPCsToSpawn) {
 					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
 					type->GetFullName(&name, NULL);
-					Log::GetLog()->info("animal {}", name.ToString());
+					//Log::GetLog()->info("animal {}", name.ToString());
 					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
 
 					if (name.Contains("MeanWhale_SeaMonster")) {
@@ -718,7 +716,7 @@ void extract(float a2) {
 
 				std::string island = GetIslandName(lvlname.ToString());
 				std::string overrideSettings = island + "_" + name.ToString();
-				Log::GetLog()->info("Override {}", overrideSettings);
+				//Log::GetLog()->info("Override {}", overrideSettings);
 				if (overrideClasses.find(overrideSettings) != overrideClasses.end()) {
 					nSub = overrideClasses[overrideSettings];
 				}
@@ -730,7 +728,7 @@ void extract(float a2) {
 				n->GetWorldLocation(&vec);
 				const FVector2D loc = VectorGPS(vec);
 				auto count = n->GetInstanceCount();
-				Log::GetLog()->info("	loc c {} - {} {}", count, loc.X, loc.Y);
+				//Log::GetLog()->info("	loc c {} - {} {}", count, loc.X, loc.Y);
 				// Don't add 0 counts
 				if (count > 0) {
 					// Add all the harvestable classes
@@ -802,26 +800,29 @@ void extract(float a2) {
 
 		// Find the new altars
 		if (name.Contains("Damned")) {
-			Log::GetLog()->info(" placeholder {} ", name.ToString());
+			//Log::GetLog()->info(" named node {} ", name.ToString());
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
 			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
-			if (name.Contains("DamnedAltar"))
+			if (!name.Contains("DamnedAltar2"))
 				json["Altar"]["Damned Altar"].push_back({ gps.X, gps.Y });
 			else
 				json["Altar"]["AoTD Altar"].push_back({ gps.X, gps.Y });
 		}
 
 		// Find the new altars
-		/*if (name.Contains("StructurePlaceHolder_StaticNode_C")) {
+		if (name.Contains("StructurePlaceHolder")) {
 			Log::GetLog()->info(" placeholder {} ", name.ToString());
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
 			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(),name.ToString(), gps.X, gps.Y);
-			json["Altar"][name.ToString()].push_back({ gps.X, gps.Y });
-		}*/
+			if (name.Contains("TempleFoundation"))
+				json["Altar"]["Pyramid Site"].push_back({ gps.X, gps.Y });
+			else if (!name.Contains("Pyramid"))
+				json["Altar"]["Static"].push_back({ gps.X, gps.Y });
+		}
 
 		if (
 			name.Contains("HierarchicalInstancedStaticMeshActor") &&
@@ -925,23 +926,15 @@ void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString Comman
 	AShooterGameMode_InitOptionBool_original(This, CommandLine, Section, Option, CurrentValue);
 }
 
-/*void Hook_APrimalStructureSeating_DriverSeat_UpdateDesiredDir(APrimalStructureSeating_DriverSeat* This, FVector2D dir) {
-	Log::GetLog()->info("update dir {}  {}", dir.X, dir.Y);
-	APrimalStructureSeating_DriverSeat_UpdateDesiredDir_original(This, dir);
-}*/
-
-
 void Load() {
 	Log::Get().Init("DumpResources");
+	
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions, &AShooterGameMode_InitOptions_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString, &AShooterGameMode_InitOptionString_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger, &AShooterGameMode_InitOptionInteger_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat, &AShooterGameMode_InitOptionFloat_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool, &AShooterGameMode_InitOptionBool_original);
-
-	//ArkApi::GetHooks().SetHook("APrimalStructureSeating_DriverSeat.UpdateDesiredDir", &Hook_APrimalStructureSeating_DriverSeat_UpdateDesiredDir, &APrimalStructureSeating_DriverSeat_UpdateDesiredDir_original);
-
 }
 
 void Unload() {

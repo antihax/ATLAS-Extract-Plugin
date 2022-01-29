@@ -107,7 +107,7 @@
       <DelayLoadDLLs>Permissions.dll</DelayLoadDLLs>
     </Link>
     <PostBuildEvent>
-      <Command>copy $(OutDir)DumpResources.dll $(SolutionDir)server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources</Command>
+      <Command>copy $(OutDir)$(TargetFileName) $(SolutionDir)server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\$(TargetName)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
