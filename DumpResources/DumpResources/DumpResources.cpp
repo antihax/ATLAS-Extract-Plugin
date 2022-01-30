@@ -112,15 +112,18 @@ FString fixNPCName(FString npcname) {
 	npcname = npcname.Replace(L"Default__", L"");
 	npcname = npcname.Replace(L"_Character_BP_Trench", L"");
 	npcname = npcname.Replace(L"_Character_BP_Cave", L"");
-	npcname = npcname.Replace(L"_Character_BP_C", L"");
+	npcname = npcname.Replace(L"_Character_BP", L"");
 	npcname = npcname.Replace(L"FreshwaterFish_", L"");
 	npcname = npcname.Replace(L"SaltwaterFish_", L"");
 	npcname = npcname.Replace(L"Wild", L"");
 	npcname = npcname.Replace(L"Atlas", L"");
 	npcname = npcname.Replace(L"GiantSnake", L"Cobra");
+	npcname = npcname.Replace(L"CarrierTurtle", L"Grand Tortugar");
 	npcname = npcname.Replace(L"Giant", L"");
-	npcname = npcname.Replace(L"hild_C", L"");
-	npcname = npcname.Replace(L"_C", L"");
+	npcname = npcname.Replace(L"Child", L"");
+	npcname.RemoveFromEnd(L"_C");
+	npcname = npcname.Replace(L"_BP", L"");
+	npcname = npcname.Replace(L"_", L" ");
 	npcname = npcname.TrimStartAndEnd();
 	return npcname;
 }
@@ -447,9 +450,26 @@ void dumpAnimals() {
 	file.close();
 }
 
+nlohmann::json getAnimal(TSubclassOf<APrimalDinoCharacter> entryClass) {
+	auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
+	FString npcname;
+	e->NameField().ToString(&npcname);
+	if (npcname.Contains("HumanNPC"))
+		return NULL;
+
+	npcname = fixNPCName(npcname);
+	//Log::GetLog()->info("animal {}", npcname.ToString());
+	nlohmann::json animal;
+	animal["name"] = npcname.ToString();
+	return animal;
+}
+
+
 void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
 	auto gameInstance = static_cast<UShooterGameInstance*> (World->OwningGameInstanceField());
+	auto gameData = ArkApi::GetApiUtils().GetGameData();
+
 	nlohmann::json json;
 
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
@@ -468,7 +488,6 @@ void extract(float a2) {
 	Log::GetLog()->info("Server Name {} {}", grid->WorldFriendlyNameField().ToString(), server->NameField().ToString());
 
 	TArray<AActor*> found_actors;
-
 	// Loop all actors first time to find things we are interested in
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
@@ -499,66 +518,65 @@ void extract(float a2) {
 				json["Biomes"][key]["tags"].push_back(biomeTag.ToString());
 			}
 		}
-
-		if (name.Contains("CreatureSpawnEntries")) {
+		
+		if (actor->IsA(ANPCZoneManager::GetPrivateStaticClass(NULL))) // if (name.Contains("CreatureSpawnEntries")) 
+		{
+			//Log::GetLog()->info("Spawner ? {}", name.ToString());
 			auto zm = static_cast<ANPCZoneManager*> (actor);
-			auto type = static_cast<UNPCSpawnEntriesContainer*> (zm->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
-
-			char buff[200];
-			nlohmann::json locations;
-			bool found = false;
-			for (auto spawnVolume : zm->LinkedZoneSpawnVolumeEntriesField()) {
-				if (spawnVolume.LinkedZoneSpawnVolume) {
-					found = true;
-					auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
-					snprintf(buff, sizeof(buff), "%.2f:%.2f", gps.X, gps.Y);
-					locations.push_back({ gps.X, gps.Y });
-				}
-			}
-			if (found) {
-				for (auto npc : type->NPCSpawnEntriesField()) {
-					int num = 0;
-					nlohmann::json animals;
-					for (auto entryClass : npc.NPCsToSpawn) {
-						auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
-						FString npcname;
-						e->NameField().ToString(&npcname);
-						if (npcname.Contains("HumanNPC"))
-							continue;
-
-						npcname = fixNPCName(npcname);
-						//Log::GetLog()->info("animal {}", npcname.ToString());
-						nlohmann::json animal;
-						animal["name"] = npcname.ToString();
-
-						if (npc.NPCMinLevelOffset.Num() > num)
-							animal["minLevelOffset"] = npc.NPCMinLevelOffset[num];
-						if (npc.NPCMinLevelOffset.Num() > num)
-							animal["maxLevelOffset"] = npc.NPCMaxLevelOffset[num];
-						if (npc.NPCMinLevelMultiplier.Num() > num)
-							animal["minLevelMultiplier"] = npc.NPCMinLevelMultiplier[num];
-						if (npc.NPCMaxLevelMultiplier.Num() > num)
-							animal["maxLevelMultiplier"] = npc.NPCMaxLevelMultiplier[num];
-						if (npc.NPCsToSpawnPercentageChance.Num() > num && npc.NPCsToSpawnPercentageChance[num] != 1.0f)
-							animal["spawnChance"] = npc.NPCsToSpawnPercentageChance[num];
-						if (npc.NPCOverrideLevel.Num() > num)
-							animal["overrideLevel"] = (int)npc.NPCOverrideLevel[num];
-
-						animals.push_back(animal);
-						num++;
+			if (zm->NPCSpawnEntriesContainerObjectField().uClass) {
+				auto spawnEntriesContainer = static_cast<UNPCSpawnEntriesContainer*> (zm->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
+				for (auto add : gameData->TheNPCSpawnEntriesContainerAdditionsField()) {
+					if (add.SpawnEntriesContainerClass.uClass == zm->NPCSpawnEntriesContainerObjectField().uClass) {
+						for (int i = 0; i < add.AdditionalNPCSpawnEntries.Num(); i++) {
+							spawnEntriesContainer->NPCSpawnEntriesField().Add(add.AdditionalNPCSpawnEntries[i]);
+							if (add.AdditionalNPCSpawnLimits.IsValidIndex(i))
+								spawnEntriesContainer->NPCSpawnLimitsField().Add(add.AdditionalNPCSpawnLimits[i]);
+						}
 					}
+				}
 
-					json["Animals"][buff].push_back({
-						{ "gps", locations },
-						{ "spawnLimits", {zm->MinDesiredNumberOfNPCField() * zm->DesiredNumberOfNPCMultiplierField(), zm->AbsoluteMaxNumberOfNPCField(), zm->TheIncreaseNPCIntervalField() * zm->IncreaseNPCIntervalMultiplierField() } },
-						{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
-						{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
-						{ "levelMultiplier", zm->NPCLevelMultiplierField() },
-						{ "levelMinOveride", zm->ForceOverrideNPCBaseLevelField() },
-						{ "islandLevelMultiplier", zm->IslandFinalNPCLevelMultiplierField() },
-						{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
-						{ "animals", animals },
-						});
+				char buff[200];
+				nlohmann::json locations;
+				bool found = false;
+				for (auto spawnVolume : zm->LinkedZoneSpawnVolumeEntriesField()) {
+					if (spawnVolume.LinkedZoneSpawnVolume) {
+						found = true;
+						auto gps = ActorGPS(spawnVolume.LinkedZoneSpawnVolume);
+						snprintf(buff, sizeof(buff), "%.2f:%.2f", gps.X, gps.Y);
+						locations.push_back({ gps.X, gps.Y });
+					}
+				}
+				if (found) {
+						for (auto npc : spawnEntriesContainer->NPCSpawnEntriesField()) {
+						nlohmann::json animals;
+						for (auto entryClass : npc.NPCsToSpawn) {
+							for (auto remap : gameData->GlobalNPCRandomSpawnClassWeightsField()) {
+								if (entryClass.uClass == remap.FromClass.uClass) {
+									int num = 0;
+									for (auto animal : remap.ToClasses) {
+										if (remap.Weights[num] >= 1.0f)
+											entryClass.uClass = remap.FromClass.uClass;
+										else
+											animals.push_back(getAnimal(animal.uClass));
+									}
+									num++;
+								}
+							}
+							animals.push_back(getAnimal(entryClass));
+						}
+
+						json["Animals"][buff].push_back({
+							{ "gps", locations },
+							{ "spawnLimits", {zm->MinDesiredNumberOfNPCField() * zm->DesiredNumberOfNPCMultiplierField(), zm->AbsoluteMaxNumberOfNPCField(), zm->TheIncreaseNPCIntervalField() * zm->IncreaseNPCIntervalMultiplierField() } },
+							{ "levelOffset", zm->ExtraNPCLevelOffsetField() },
+							{ "levelLerp", zm->NPCLerpToMaxRandomBaseLevelField() },
+							{ "levelMultiplier", zm->NPCLevelMultiplierField() },
+							{ "levelMinOveride", zm->ForceOverrideNPCBaseLevelField() },
+							{ "islandLevelMultiplier", zm->IslandFinalNPCLevelMultiplierField() },
+							{ "islandLevelOffset", zm->IslandFinalNPCLevelOffsetField() },
+							{ "animals", animals },
+							});
+					}
 				}
 			}
 		}
