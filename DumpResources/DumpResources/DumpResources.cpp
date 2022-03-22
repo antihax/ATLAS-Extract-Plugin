@@ -25,9 +25,9 @@ static void GPSBounds() {
 	vec.X = grid->TotalGridsXField() * (grid->GridSizeField());
 	vec.Y = grid->TotalGridsYField() * (grid->GridSizeField());
 
-	grid->GlobalLocationToGPSLocation(&res, FVector(0,0,0));
+	grid->GlobalLocationToGPSLocation(&res, FVector(0, 0, 0));
 	json["min"] = { res.X, res.Y };
-	
+
 	grid->GlobalLocationToGPSLocation(&res, vec);
 	json["max"] = { res.X, res.Y };
 
@@ -142,9 +142,9 @@ void dumpItems() {
 	// Get all blueprint crafting requirements
 	TArray<UObject*> types;
 	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
-		
+
 	const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
-	
+
 	for (auto object : types) {
 		auto n = static_cast<UPrimalItem*> (object);
 		FString name;
@@ -165,12 +165,12 @@ void dumpItems() {
 		json[name.ToString()]["Name"] = n->DescriptiveNameBaseField().ToString();
 
 		if (n->UseItemAddCharacterStatusValuesField().Num()) {
-				for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
+			for (auto stat : n->UseItemAddCharacterStatusValuesField()) {
 				json[name.ToString()]["stats"][statNames[stat.StatusValueType.GetValue()]] = {
 					{"add", stat.BaseAmountToAdd},
 					{"addOverTime", stat.bAddOverTime == 1 ? true : false},
 					{"addOverTimeSpeed", stat.AddOverTimeSpeed},
-					};
+				};
 				json[name.ToString()]["SpoilTime"] = n->SpoilingTimeField();
 				json[name.ToString()]["Weight"] = n->BaseItemWeightField() * n->BaseItemWeightMultiplierField();
 				json[name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
@@ -178,7 +178,7 @@ void dumpItems() {
 		}
 
 		for (auto res : n->BaseCraftingResourceRequirementsField()) {
-			if (res.ResourceItemType.uClass) {
+			if (res.ResourceItemType.uClass && res.BaseResourceRequirement > 0.0f) {
 				if (res.ResourceItemType.uClass->ClassDefaultObjectField()) {
 					auto pi = static_cast<UPrimalItem*> (res.ResourceItemType.uClass->ClassDefaultObjectField());
 					FString type;
@@ -196,6 +196,34 @@ void dumpItems() {
 	file.close();
 }
 
+
+void dumpShips() {
+	nlohmann::json json;
+	json["Structures"] = nullptr;
+	Log::GetLog()->info("Dump Ships");
+
+	TArray<UObject*> types;
+	Globals::GetObjectsOfClass(APrimalRaft::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+	for (auto object : types) {
+		auto n = static_cast<APrimalRaft*> (object);
+		FString name;
+		n->NameField().ToString(&name);
+		FString className;
+		n->NameField().ToString(&className);
+		className = fixName(className);
+		
+		json["Ships"][name.ToString()]["ClassName"] = className.ToString();
+		if (n->IconField())
+			json["Ships"][name.ToString()]["Icon"] = getIconName(n->IconField());
+	}
+
+	std::filesystem::create_directory("resources");
+	std::ofstream file("resources/ships.json");
+	file << std::setw(4) << json << std::endl;
+	file.flush();
+	file.close();
+}
+
 void dumpStructures() {
 	nlohmann::json json;
 	json["Structures"] = nullptr;
@@ -207,13 +235,26 @@ void dumpStructures() {
 		auto n = static_cast<APrimalStructure*> (object);
 		FString name;
 		n->NameField().ToString(&name);
-		if (n->DecayDestructionPeriodMultiplierField() > 1.0f) {
-			json["Structures"][name.ToString()]["DecayMultiplier"] = n->DecayDestructionPeriodMultiplierField();
-		}
+		json["Structures"][name.ToString()]["DecayTimeDays"] = n->DecayDestructionPeriodMultiplierField() * n->DecayDestructionPeriodField() / 86400;
+		json["Structures"][name.ToString()]["DecayTimeNoFlagDays"] = n->NoClaimFlagDecayDestructionPeriodMultiplierField() * n->NoClaimFlagDecayDestructionPeriodField() / 86400;
+		json["Structures"][name.ToString()]["PreventPlacingNearEnemyRadius"] = n->PreventPlacingNearEnemyRadiusField();
+		json["Structures"][name.ToString()]["AdditionalFoundationSupportDistanceForLinkedStructures"] = n->AdditionalFoundationSupportDistanceForLinkedStructuresField();
+		json["Structures"][name.ToString()]["MaximumFoundationSupport2DBuildDistance"] = n->MaximumFoundationSupport2DBuildDistanceField();
+
+		json["Structures"][name.ToString()]["IsFoundation"] = n->bIsFoundation().Get();
+		json["Structures"][name.ToString()]["IsFenceFoundation"] = n->bIsFenceFoundation().Get();
+		json["Structures"][name.ToString()]["UseFenceFoundation"] = n->bUseFenceFoundation().Get();
+		json["Structures"][name.ToString()]["IsFloor"] = n->bIsFloor().Get();
+		json["Structures"][name.ToString()]["IsWall"] = n->bIsWall().Get();
+		json["Structures"][name.ToString()]["TakeAnythingAsGround"] = n->bTakeAnythingAsGround().Get();
+		json["Structures"][name.ToString()]["ForcePlacingOnGround"] = n->bForcePlacingOnGround().Get();
+		json["Structures"][name.ToString()]["ForceGroundForFoundation"] = n->bForceGroundForFoundation().Get();
+		json["Structures"][name.ToString()]["FoundationRequiresGroundTrace"] = n->bFoundationRequiresGroundTrace().Get();
 	}
+		
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/structures.json");
-	file << json;
+	file << std::setw(4) << json << std::endl;
 	file.flush();
 	file.close();
 }
@@ -376,7 +417,7 @@ void dumpAnimals() {
 		FString className;
 		n->NameField().ToString(&className);
 		className = fixName(className);
-		if (name.Contains("Default__Vulture") || name.Contains("Default__Sheep") || name.Contains("Default__Crab") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") ||   name.Contains("Galley") || name.Contains("_Raft"))
+		if (name.Contains("Default__Vulture") || name.Contains("Default__Sheep") || name.Contains("Default__Crab") || name.Contains("Dino") || name.Contains("Primal") || name.Contains("PathFollow") || name.Contains("Galley") || name.Contains("_Raft"))
 			continue;
 
 		name = fixNPCName(name);
@@ -477,6 +518,7 @@ void extract(float a2) {
 	GPSBounds();
 	dumpItems();
 	dumpStructures();
+	dumpShips();
 	dumpLootTables();
 	dumpAnimals();
 
@@ -518,7 +560,7 @@ void extract(float a2) {
 				json["Biomes"][key]["tags"].push_back(biomeTag.ToString());
 			}
 		}
-		
+
 		if (actor->IsA(ANPCZoneManager::GetPrivateStaticClass(NULL))) // if (name.Contains("CreatureSpawnEntries")) 
 		{
 			//Log::GetLog()->info("Spawner ? {}", name.ToString());
@@ -547,7 +589,7 @@ void extract(float a2) {
 					}
 				}
 				if (found) {
-						for (auto npc : spawnEntriesContainer->NPCSpawnEntriesField()) {
+					for (auto npc : spawnEntriesContainer->NPCSpawnEntriesField()) {
 						nlohmann::json animals;
 						for (auto entryClass : npc.NPCsToSpawn) {
 							for (auto remap : gameData->GlobalNPCRandomSpawnClassWeightsField()) {
@@ -723,7 +765,7 @@ void extract(float a2) {
 				continue;
 
 			u->NameField().ToString(&name);
-		
+
 			TSubclassOf<UActorComponent> result;
 			gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
 
@@ -813,7 +855,7 @@ void extract(float a2) {
 		AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
 		FString name;
-		
+
 		actor->GetFullName(&name, NULL);
 
 		// Find the new altars
@@ -835,7 +877,7 @@ void extract(float a2) {
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
-			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(),name.ToString(), gps.X, gps.Y);
+			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
 			if (name.Contains("TempleFoundation"))
 				json["Altar"]["Pyramid Site"].push_back({ gps.X, gps.Y });
 			else if (!name.Contains("Pyramid"))
@@ -946,7 +988,7 @@ void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString Comman
 
 void Load() {
 	Log::Get().Init("DumpResources");
-	
+
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions, &AShooterGameMode_InitOptions_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString, &AShooterGameMode_InitOptionString_original);

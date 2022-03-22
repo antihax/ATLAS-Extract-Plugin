@@ -16,6 +16,38 @@ void ChatRate(AShooterPlayerController* player_controller, FString* message, ECh
 	Log::GetLog()->info(" hang for {}", gHangTickTime);
 }
 
+
+void ChatReq(AShooterPlayerController* player_controller, FString* message, EChatSendMode::Type /*unused*/)
+{
+	Log::GetLog()->info("REQ CALLED");
+	TArray<AActor*> found_actors;
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()), APrimalStructureMonumentThirdTierEgyptTemple::GetPrivateStaticClass(NULL), &found_actors);
+	for (auto object : found_actors) {
+		auto t = static_cast<APrimalStructureMonumentThirdTierEgyptTemple*> (object);
+		if (t) {
+			t->UpdateStageBarrierComponents();
+			Log::GetLog()->info("ok {}", t->StageRequirementsField().Num());
+		}
+		for (auto stage : t->StageRequirementsField()) {
+			Log::GetLog()->info("stages");
+			for (auto r : stage.RequiredResources) {
+				Log::GetLog()->info("resources");
+				auto item = r.RequiredResourceType;
+				if (item.uClass && item.uClass->ClassDefaultObjectField()) {
+					auto i = static_cast<UPrimalItem*> (item.uClass->ClassDefaultObjectField());
+					FString itemName;
+					i->GetItemName(&itemName, false, true, NULL);
+					Log::GetLog()->info("\tMonumentThirdTierEgyptTempleC {} {} ", itemName.ToString(), r.RequiredResourceCount);
+					//	json[count]["Items"].push_back(fixName(itemName).ToString());
+
+				}
+			}
+		}
+	}
+}
+
+
+
 void ChatFPS(AShooterPlayerController* player_controller, FString* message, EChatSendMode::Type /*unused*/)
 {
 	TArray<FString> argv;
@@ -46,6 +78,8 @@ void Load() {
 
 	ArkApi::GetCommands().AddChatCommand("/rate", &ChatRate);
 	ArkApi::GetCommands().AddChatCommand("/fps", &ChatFPS);
+	ArkApi::GetCommands().AddChatCommand("/req", &ChatReq);
+	
 }
 
 void Unload() {
@@ -97,7 +131,7 @@ float Hook_UGameEngine_GetMaxTickRate(UGameEngine* This, float deltaTime, bool a
 
 	auto fps = UGameEngine_GetMaxTickRate_original(This, deltaTime, allowSmoothing);
 
-	Log::GetLog()->info(" setfps {} {}", fps, allowSmoothing);
+	//Log::GetLog()->info(" setfps {} {}", fps, allowSmoothing);
 	return fps;
 }
 
