@@ -30,6 +30,341 @@ if (!process.argv.includes('nobuild')) {
 // do this after building
 const gpsBounds = helpers.parseJSONFile(resourceDir + 'gpsbounds.json');
 
+let g = graph();
+const nodesPerAxis = 30;
+let gridSize = serverConfig.gridSize;
+let gridOffset = gridSize / nodesPerAxis / 2;
+
+// Pass 1: build nodes and link
+for (let server in serverConfig.servers) {
+	let s = serverConfig.servers[server];
+	// loop west to east
+	for (
+		let x = s.gridX * gridSize + gridOffset;
+		x < (s.gridX + 1) * gridSize;
+		x += gridSize / nodesPerAxis
+	) {
+		let lastY;
+		for (
+			let y = s.gridY * gridSize + gridOffset;
+			y < (s.gridY + 1) * gridSize;
+			y += gridSize / nodesPerAxis
+		) {
+			let point = [x, y];
+			let skip = false;
+			for (let island in s.islandInstances) {
+				// skip if the node is inside an island
+				if (helpers.inside(s.islandInstances[island], point)) {
+					skip = true;
+					lastY = undefined;
+					break;
+				}
+			}
+			if (skip) continue;
+			g.addNode(worldToGPS(x, y, gpsBounds).toString(), {});
+			if (lastY !== undefined) {
+				g.addLink(
+					worldToGPS(x, y, gpsBounds).toString(),
+					worldToGPS(x, lastY, gpsBounds).toString(),
+				);
+				g.addLink(
+					worldToGPS(x, lastY, gpsBounds).toString(),
+					worldToGPS(x, y, gpsBounds).toString(),
+				);
+				if (x > s.gridX * gridSize + gridOffset * 10)
+					if (y > s.gridY * gridSize + gridOffset * 10)
+						if (y < (s.gridY + 1) * gridSize - gridOffset * 10)
+							if (x < (s.gridX + 1) * gridSize - gridOffset * 10) linkNodesNearest([x, y], g);
+			}
+			lastY = y;
+		}
+	}
+
+	// loop north to south and link remaining nodes
+	for (
+		let y = s.gridY * gridSize + gridOffset;
+		y < (s.gridY + 1) * gridSize;
+		y += gridSize / nodesPerAxis
+	) {
+		let lastX;
+		for (
+			let x = s.gridX * gridSize + gridOffset;
+			x < (s.gridX + 1) * gridSize;
+			x += gridSize / nodesPerAxis
+		) {
+			let point = [x, y];
+			let skip = false;
+			for (let island in s.islandInstances) {
+				// skip if the node is inside an island
+				if (helpers.inside(s.islandInstances[island], point)) {
+					skip = true;
+					lastX = undefined;
+					break;
+				}
+			}
+			if (skip) continue;
+			if (lastX !== undefined) {
+				g.addLink(
+					worldToGPS(x, y, gpsBounds).toString(),
+					worldToGPS(lastX, y, gpsBounds).toString(),
+				);
+				g.addLink(
+					worldToGPS(lastX, y, gpsBounds).toString(),
+					worldToGPS(x, y, gpsBounds).toString(),
+				);
+			}
+			lastX = x;
+		}
+	}
+}
+
+// Pass 2: link grid borders
+const region = helpers.parseJSONFile('./json/regions.json');
+for (let server in serverConfig.servers) {
+	let s = serverConfig.servers[server];
+	let bounds = getRegionBounds(s.gridX, s.gridY, region);
+	if (bounds === undefined) continue; // skip if no region
+
+	// North pass
+	let y = s.gridY * gridSize + gridOffset;
+	let count = 0;
+	for (
+		let x = s.gridX * gridSize + gridOffset;
+		x < (s.gridX + 1) * gridSize;
+		x += gridSize / nodesPerAxis
+	) {
+		let step = (gridSize / nodesPerAxis) * count++;
+		let origin = worldToGPS(x, y, gpsBounds);
+		// Override North transfer
+		if (s.OverrideDestNorthX > -1) {
+			let dX = s.OverrideDestNorthX * gridSize + gridOffset + step;
+			let dY = (s.OverrideDestNorthY + 1) * gridSize - gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// Wrap North Transfer
+		else if (bounds.MinY === s.gridY) {
+			let dX = x;
+			let dY = (bounds.MaxY + 1) * gridSize - gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// North Transfer
+		else {
+			let dX = x;
+			let dY = s.gridY * gridSize - gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+	}
+
+	// South pass
+	count = 0;
+	y = (s.gridY + 1) * gridSize - gridOffset;
+	for (
+		let x = s.gridX * gridSize + gridOffset;
+		x < (s.gridX + 1) * gridSize;
+		x += gridSize / nodesPerAxis
+	) {
+		let step = (gridSize / nodesPerAxis) * count++;
+		let origin = worldToGPS(x, y, gpsBounds);
+		// Override South transfer
+		if (s.OverrideDestSouthX > -1) {
+			let dX = s.OverrideDestSouthX * gridSize + gridOffset + step;
+			let dY = s.OverrideDestSouthY * gridSize + gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// Wrap South Transfer
+		else if (bounds.MaxY === s.gridY) {
+			let dX = x;
+			let dY = bounds.MinY * gridSize + gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// South Transfer
+		else {
+			let dX = x;
+			let dY = (s.gridY + 1) * gridSize + gridOffset;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+
+			g.addLink(origin.toString(), destination.toString());
+		}
+	}
+
+	// West pass
+	count = 0;
+	let x = s.gridX * gridSize + gridOffset;
+	for (
+		let y = s.gridY * gridSize + gridOffset;
+		y < (s.gridY + 1) * gridSize;
+		y += gridSize / nodesPerAxis
+	) {
+		let step = (gridSize / nodesPerAxis) * count++;
+		let origin = worldToGPS(x, y, gpsBounds);
+		// Override West transfer
+		if (s.OverrideDestWestX > -1) {
+			let dX = (s.OverrideDestWestX + 1) * gridSize - gridOffset;
+			let dY = s.OverrideDestWestY * gridSize + gridOffset + step;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			console.log(
+				origin,
+				destination,
+				gridName([s.gridX, s.gridY]),
+				gridName([s.OverrideDestWestX, s.OverrideDestWestY]),
+			);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// Wrap West Transfer
+		else if (bounds.MinX === s.gridX) {
+			let dX = (bounds.MaxX + 1) * gridSize - gridOffset;
+			let dY = y;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// West Transfer
+		else {
+			let dX = s.gridX * gridSize - gridOffset;
+			let dY = y;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+	}
+
+	// East pass
+	count = 0;
+	x = (s.gridX + 1) * gridSize - gridOffset;
+	for (
+		let y = s.gridY * gridSize + gridOffset;
+		y < (s.gridY + 1) * gridSize;
+		y += gridSize / nodesPerAxis
+	) {
+		let step = (gridSize / nodesPerAxis) * count++;
+		let origin = worldToGPS(x, y, gpsBounds);
+		// Override East transfer
+		if (s.OverrideDestEastX > -1) {
+			let dX = s.OverrideDestEastX * gridSize + gridOffset;
+			let dY = s.OverrideDestEastY * gridSize + gridOffset + step;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// Wrap East Transfer
+		else if (bounds.MaxX === s.gridX) {
+			let dX = bounds.MinX * gridSize + gridOffset;
+			let dY = y;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+		// East Transfer
+		else {
+			let dX = (s.gridX + 1) * gridSize + gridOffset;
+			let dY = y;
+			let destination = worldToGPS(dX, dY, gpsBounds);
+			g.addLink(origin.toString(), destination.toString());
+		}
+	}
+}
+
+// Pass 3: link up portals
+if (serverConfig.portalPaths) {
+	serverConfig.portalPaths.forEach((path) => {
+		for (let i = 1; i < path.Nodes.length; i++) {
+			let n1 = path.Nodes[0];
+			let n2 = path.Nodes[i];
+			let n1loc = [n1.worldX, n1.worldY];
+			let n2loc = [n2.worldX, n2.worldY];
+
+			// Link the closest nodes to the portal
+			if (i === 1) linkNodesNearest(n1loc, g);
+			linkNodesNearest(n2loc, g);
+
+			// link the portals
+			switch (path.PathPortalType) {
+				case 0: // Both directions
+					g.addLink(
+						worldToGPS(n1loc[0], n1loc[1], gpsBounds).toString(),
+						worldToGPS(n2loc[0], n2loc[1], gpsBounds).toString(),
+					);
+					g.addLink(
+						worldToGPS(n2loc[0], n2loc[1], gpsBounds).toString(),
+						worldToGPS(n1loc[0], n1loc[1], gpsBounds).toString(),
+					);
+
+					break;
+				case 1: // One way
+				case 2: // One way
+				case 3: // One way
+					g.addLink(
+						worldToGPS(n1loc[0], n1loc[1], gpsBounds).toString(),
+						worldToGPS(n2loc[0], n2loc[1], gpsBounds).toString(),
+					);
+					break;
+			}
+		}
+	});
+}
+
+function linkNodesNearest([x1, y1], g) {
+	for (let i = 0; i < 4; i++) {
+		let origin, destination;
+
+		destination = worldToGPS(x1, y1, gpsBounds).toString();
+		[x1, y1] = closestNode([x1, y1]);
+		switch (i) {
+			case 0:
+				origin = worldToGPS(x1 + gridOffset, y1 + gridOffset, gpsBounds).toString();
+				break;
+			case 1:
+				origin = worldToGPS(x1 + gridOffset, y1 - gridOffset, gpsBounds).toString();
+				break;
+			case 2:
+				origin = worldToGPS(x1 - gridOffset, y1 - gridOffset, gpsBounds).toString();
+				break;
+			case 3:
+				origin = worldToGPS(x1 - gridOffset, y1 + gridOffset, gpsBounds).toString();
+				break;
+		}
+
+		g.addNode(destination);
+		g.addLink(origin, destination);
+		g.addLink(destination, origin);
+	}
+}
+
+function gridName(server) {
+	return String.fromCharCode(65 + server[0]) + (server[1] + 1);
+}
+
+function closestNode(l) {
+	return [roundNodeLocation(l[0]), roundNodeLocation(l[1])];
+}
+
+function roundNodeLocation(v) {
+	let step = gridSize / nodesPerAxis;
+	if (v % step == 0) {
+		return Math.floor(v / step) * step;
+	}
+	return Math.floor(v / step) * step + step;
+}
+
+function getRegionBounds(x, y, regions) {
+	let b;
+	Object.entries(regions).forEach(([region, bounds]) => {
+		if (x >= bounds.MinX && x <= bounds.MaxX && y >= bounds.MinY && y <= bounds.MaxY) {
+			b = bounds;
+			return true;
+		}
+	});
+	return b;
+}
+
+let pathfinder = [];
+
+g.forEachLink(function (link) {
+	pathfinder.push({f: link.fromId, t: link.toId});
+});
+fs.writeFileSync('./json/pathfinder.json', JSON.stringify(pathfinder));
+
 // load resources
 let grids = {};
 let stones = [];
@@ -77,10 +412,9 @@ let islandExtended = {};
 let gridList = {};
 let regions = {};
 
-let g = graph();
-
 for (let server in serverConfig.servers) {
 	let s = serverConfig.servers[server];
+
 	let grid = helpers.gridName(s.gridX, s.gridY);
 	let gridBiomes = new Set();
 	let gridAnimals = new Set();
@@ -113,10 +447,16 @@ for (let server in serverConfig.servers) {
 		};
 	} else {
 		let r = regions[s.hiddenAtlasId];
-		if (r.MinX > s.gridX) r.MinX = s.gridX;
-		if (r.MinY > s.gridY) r.MinY = s.gridY;
-		if (r.MaxX < s.gridX) r.MaxX = s.gridX;
-		if (r.MaxY < s.gridY) r.MaxY = s.gridY;
+
+		// Grow region bounds elastically
+		if (r.MaxX < s.gridX && r.MaxX + 1 === s.gridX) {
+			r.MaxX = s.gridX;
+			r.MaxY = s.gridY; // hack to fix over extending
+		}
+		// Grow as a rectangle
+		if (r.MaxY < s.gridY && r.MaxY + 1 === s.gridY) {
+			r.MaxY = s.gridY;
+		}
 	}
 
 	gridList[grid].biomes = new Set();
@@ -313,6 +653,8 @@ fs.writeFileSync(
 				YRange: Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
 				XScale: 200 / Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
 				YScale: 200 / Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
+				NodesPerAxis: nodesPerAxis,
+				GridOffset: gridOffset,
 			}),
 			null,
 			'\t',
@@ -351,13 +693,13 @@ fs.writeFileSync(
 function worldToGPS(x, y, bounds) {
 	let long = (x / worldUnitsX) * Math.abs(bounds.min[0] - bounds.max[0]) + bounds.min[0];
 	let lat = bounds.min[1] - (y / worldUnitsY) * Math.abs(bounds.min[1] - bounds.max[1]);
-	return [long, lat];
+	return [parseFloat(long.toFixed(1)), parseFloat(lat.toFixed(1))];
 }
 
 function GPSToWorld(x, y, bounds) {
 	let long = ((x - bounds.min[0]) / Math.abs(bounds.min[0] - bounds.max[0])) * worldUnitsX;
 	let lat = ((-y + bounds.min[1]) / Math.abs(bounds.min[1] - bounds.max[1])) * worldUnitsY;
-	return [long, lat];
+	return [parseInt(long.toFixed(0)), parseInt(lat.toFixed(0))];
 }
 
 function sortObjByKey(value) {

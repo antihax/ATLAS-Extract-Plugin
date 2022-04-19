@@ -27,6 +27,7 @@ for (let island in islands) {
 	}
 	for (let resource in i.resources) {
 		resource = resource.replace(/ \(Rock\)/g, '');
+		console.log(resource);
 		if (!resources[resource].type) {
 			console.log('Unknown ' + resource);
 		}

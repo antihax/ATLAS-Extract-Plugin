@@ -176,6 +176,19 @@ void dumpItems() {
 				json[name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
 			}
 		}
+		
+		if (n->BuffToGiveOwnerCharacterField().uClass && n->BuffToGiveOwnerCharacterField().uClass->ClassDefaultObjectField()) {
+			auto buff = static_cast<APrimalBuff*> (n->BuffToGiveOwnerCharacterField().uClass->ClassDefaultObjectField());
+			Log::GetLog()->info("Buff Ref {} {}", buff->BuffDescriptionField().ModifierName.ToString(), buff->BuffDescriptionField().ModifierDescription.ToString());
+
+			for (auto statGroup : buff->BuffStatGroupEntriesField()) {
+				json[name.ToString()]["stats"][statGroup.StatGroupName.ToString().ToString()] = {
+					{"modify", statGroup.StatModifier},
+				};
+				Log::GetLog()->info("\t{} ", statGroup.StatGroupName.ToString().ToString());
+			}
+		}
+		
 
 		for (auto res : n->BaseCraftingResourceRequirementsField()) {
 			if (res.ResourceItemType.uClass && res.BaseResourceRequirement > 0.0f) {
@@ -963,7 +976,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, floa
 	AShooterGameMode_BeginPlay_original(a_shooter_game_mode, a2);
 
 	extract(a2);
-	exit(0);
+	FWindowsPlatformMisc::RequestExit(true);
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
