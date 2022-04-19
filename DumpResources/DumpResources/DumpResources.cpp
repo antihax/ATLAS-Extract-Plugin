@@ -700,6 +700,9 @@ void extract(float a2) {
 				Log::GetLog()->info("Found dino epic {}", name.ToString());
 				int count = 0;
 				for (const auto npc : dino.NPCsToSpawn) {
+					if (npc.uClass == NULL)
+						continue;
+
 					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
 					type->GetFullName(&name, NULL);
 					//Log::GetLog()->info("animal {}", name.ToString());
