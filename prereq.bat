@@ -8,7 +8,7 @@ copy DumpResources\DumpResources\configs\msdia140.dll DumpResources\server\Shoot
 copy DumpResources\DumpResources\configs\config.json DumpResources\server\ShooterGame\Binaries\Win64\
 copy DumpResources\DumpResources\configs\PdbConfig.json DumpResources\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\DumpResources
 
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip', 'DumpResources\steamcmd/steamcmd.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip', 'DumpResources/steamcmd/steamcmd.zip')"
 tar -xf DumpResources\steamcmd/steamcmd.zip -C DumpResources\steamcmd
 
 DumpResources\steamcmd\steamcmd.exe +force_install_dir ..\server +login anonymous +app_update 1006030 +quit

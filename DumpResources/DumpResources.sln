@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ForceOldStructureChecks", "
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DebugTools", "DebugTools\DebugTools.vcxproj", "{1D8A1AAA-44A0-4087-A68D-D9D143BD2F73}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChangeAnything", "ChangeAnything\ChangeAnything.vcxproj", "{2AC92E8D-1885-4E8B-80EA-4980CE657F66}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -29,6 +31,10 @@ Global
 		{1D8A1AAA-44A0-4087-A68D-D9D143BD2F73}.Debug|x64.Build.0 = Debug|x64
 		{1D8A1AAA-44A0-4087-A68D-D9D143BD2F73}.Release|x64.ActiveCfg = Release|x64
 		{1D8A1AAA-44A0-4087-A68D-D9D143BD2F73}.Release|x64.Build.0 = Release|x64
+		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Debug|x64.ActiveCfg = Debug|x64
+		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Debug|x64.Build.0 = Debug|x64
+		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Release|x64.ActiveCfg = Release|x64
+		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

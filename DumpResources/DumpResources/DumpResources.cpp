@@ -176,19 +176,18 @@ void dumpItems() {
 				json[name.ToString()]["Type"] = n->ItemTypeCategoryStringField().ToString();
 			}
 		}
-		
+
 		if (n->BuffToGiveOwnerCharacterField().uClass && n->BuffToGiveOwnerCharacterField().uClass->ClassDefaultObjectField()) {
 			auto buff = static_cast<APrimalBuff*> (n->BuffToGiveOwnerCharacterField().uClass->ClassDefaultObjectField());
-			Log::GetLog()->info("Buff Ref {} {}", buff->BuffDescriptionField().ModifierName.ToString(), buff->BuffDescriptionField().ModifierDescription.ToString());
+			//	Log::GetLog()->info("Buff Ref {} {}", buff->BuffDescriptionField().ModifierName.ToString(), buff->BuffDescriptionField().ModifierDescription.ToString());
 
 			for (auto statGroup : buff->BuffStatGroupEntriesField()) {
 				json[name.ToString()]["stats"][statGroup.StatGroupName.ToString().ToString()] = {
 					{"modify", statGroup.StatModifier},
 				};
-				Log::GetLog()->info("\t{} ", statGroup.StatGroupName.ToString().ToString());
+				//	Log::GetLog()->info("\t{} ", statGroup.StatGroupName.ToString().ToString());
 			}
 		}
-		
 
 		for (auto res : n->BaseCraftingResourceRequirementsField()) {
 			if (res.ResourceItemType.uClass && res.BaseResourceRequirement > 0.0f) {
@@ -224,7 +223,7 @@ void dumpShips() {
 		FString className;
 		n->NameField().ToString(&className);
 		className = fixName(className);
-		
+
 		json["Ships"][name.ToString()]["ClassName"] = className.ToString();
 		if (n->IconField())
 			json["Ships"][name.ToString()]["Icon"] = getIconName(n->IconField());
@@ -235,6 +234,28 @@ void dumpShips() {
 	file << std::setw(4) << json << std::endl;
 	file.flush();
 	file.close();
+}
+
+
+nlohmann::json getFoliageSettings() {
+	nlohmann::json json;
+	Log::GetLog()->info("getFoliageSettings");
+
+	TArray<UObject*> types;
+	Globals::GetObjectsOfClass(UFoliageType::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
+	for (auto object : types) {
+		auto n = static_cast<UFoliageType*> (object);
+		FString name, harvest;
+		n->NameField().ToString(&name);
+		if (n->AttachedComponentClassField().uClass) {
+			UClass* c = n->AttachedComponentClassField().uClass;
+			c->GetPathName(NULL, &harvest);
+		}
+
+		//Log::GetLog()->info("{} {}", name.ToString(), harvest.ToString());
+	}
+
+	return json;
 }
 
 void dumpStructures() {
@@ -264,7 +285,7 @@ void dumpStructures() {
 		json["Structures"][name.ToString()]["ForceGroundForFoundation"] = n->bForceGroundForFoundation().Get();
 		json["Structures"][name.ToString()]["FoundationRequiresGroundTrace"] = n->bFoundationRequiresGroundTrace().Get();
 	}
-		
+
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/structures.json");
 	file << std::setw(4) << json << std::endl;
@@ -352,6 +373,7 @@ void dumpLootTables() {
 
 // Build map of override classes
 std::unordered_map<std::string, UClass*> getOverrideClasses() {
+
 	TArray<AActor*> found_actors;
 	// Build a map of all override resources and their resulting class
 	std::unordered_map<std::string, UClass*> OverrideClasses;
@@ -372,19 +394,21 @@ std::unordered_map<std::string, UClass*> getOverrideClasses() {
 			}
 		}
 	}
+
 	return OverrideClasses;
 }
 
 // Build map of harvestable classes
 std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
+	nlohmann::json json;
 	TArray<UObject*> objects;
 	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses;
 	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
 		auto n = static_cast<UPrimalHarvestingComponent*> (object);
-		FString name;
+		FString name, path;
 		n->GetFullName(&name, NULL);
-
+		n->GetPathName(NULL, &path);
 		// Find all the resources provided by the component
 		for (auto r : n->HarvestResourceEntriesField()) {
 			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
@@ -394,16 +418,24 @@ std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
 					FString type;
 					pi->GetItemName(&type, false, false, NULL);
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
+					json[path.ToString()].push_back(type.ToString());
 				}
 				else {
 					// Add resource to the list
 					FString type;
 					hcSub.uClass->GetDescription(&type);
+					json[path.ToString()].push_back(type.ToString());
 					harvestableClasses[n->ClassField()].push_back(type.ToString());
 				}
 			}
 		}
 	}
+
+	std::ofstream file("resources/harvestableClasses.json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
+
 	return harvestableClasses;
 }
 
@@ -529,6 +561,7 @@ void extract(float a2) {
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
 
 	GPSBounds();
+	getFoliageSettings();
 	dumpItems();
 	dumpStructures();
 	dumpShips();
@@ -662,7 +695,7 @@ void extract(float a2) {
 		if (name.Contains("FloatsamSupplyCrate")) {
 			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
 			fsc->BeginPlay(a2);
-			Log::GetLog()->info("Found Flotsam Manager {}", name.ToString());
+			//Log::GetLog()->info("Found Flotsam Manager {}", name.ToString());
 			json["Flotsam"] = {
 				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
 				{ "qualityMultiplier", fsc->ExtraCrateQualityMultiplierField()},
@@ -672,7 +705,7 @@ void extract(float a2) {
 		if (name.Contains("SunkenTreasure")) {
 			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
 			fsc->BeginPlay(a2);
-			Log::GetLog()->info("Found Sunken Treasure Manager {}", name.ToString());
+			//Log::GetLog()->info("Found Sunken Treasure Manager {}", name.ToString());
 			json["SunkenTreasure"] = {
 				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
 				{ "qualityMultiplier", fsc->ExtraCrateQualityMultiplierField()},
@@ -682,7 +715,7 @@ void extract(float a2) {
 		if (name.Contains("NPCShipZoneManager")) {
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
 			zoneManager->BeginPlay();
-			Log::GetLog()->info("Found Ship Zone Manager {}", name.ToString());
+			//Log::GetLog()->info("Found Ship Zone Manager {}", name.ToString());
 			json["SoTD"] = {
 				{ "spawnLimits", {zoneManager->MinDesiredNumberOfNPCField() * zoneManager->DesiredNumberOfNPCMultiplierField(), zoneManager->AbsoluteMaxNumberOfNPCField(), zoneManager->TheIncreaseNPCIntervalField() * zoneManager->IncreaseNPCIntervalMultiplierField() } },
 				{ "levelOffset", zoneManager->ExtraNPCLevelOffsetField() },
@@ -693,11 +726,11 @@ void extract(float a2) {
 		}
 
 		if (name.Contains("OceanEpicNPCZoneManager")) {
-			Log::GetLog()->info("Found ocean epic {}", name.ToString());
+			//Log::GetLog()->info("Found ocean epic {}", name.ToString());
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
 			zoneManager->BeginPlay();
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
-				Log::GetLog()->info("Found dino epic {}", name.ToString());
+				//Log::GetLog()->info("Found dino epic {}", name.ToString());
 				int count = 0;
 				for (const auto npc : dino.NPCsToSpawn) {
 					if (npc.uClass == NULL)
@@ -755,6 +788,7 @@ void extract(float a2) {
 	auto harvestableClasses = getHarvestableClasses();
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> resources;
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assets;
+	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assetType;
 	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
 	std::unordered_map<std::string, std::vector<std::string>> meshes;
 
@@ -782,6 +816,12 @@ void extract(float a2) {
 
 			u->NameField().ToString(&name);
 
+			if (n->AttachedComponentClassField().uClass) {
+				FString path;
+				n->AttachedComponentClassField().uClass->GetPathName(NULL, &path);
+				assetType[name.ToString()][path.ToString()] += 1;
+			}
+
 			TSubclassOf<UActorComponent> result;
 			gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
 
@@ -792,10 +832,13 @@ void extract(float a2) {
 
 				std::string island = GetIslandName(lvlname.ToString());
 				std::string overrideSettings = island + "_" + name.ToString();
-				//Log::GetLog()->info("Override {}", overrideSettings);
+
 				if (overrideClasses.find(overrideSettings) != overrideClasses.end()) {
 					nSub = overrideClasses[overrideSettings];
 				}
+				FString path;
+				nSub->GetPathName(NULL, &path);
+				assetType[name.ToString()][path.ToString()] += 1;
 			}
 
 			if (nSub) {
@@ -815,14 +858,13 @@ void extract(float a2) {
 					char buff[200];
 					snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 					std::string key = buff;
-					FString assetName;
-					// find asset names
-					if (u) {
-						u->NameField().ToString(&name);
-						if (n->StaticMeshField()) {
-							n->StaticMeshField()->NameField().ToString(&assetName);
-							assets[key][assetName.ToString()] += count;
-						}
+					FString assetName, path;
+					nSub->GetPathName(NULL, &path);
+					if (n->StaticMeshField()) {
+						n->StaticMeshField()->NameField().ToString(&assetName);
+						assets[key][assetName.ToString()] += count;
+						assetType[name.ToString()][path.ToString()] += count;
+						//Log::GetLog()->info("assetName  {} {} {} ", assetName.ToString(), name.ToString(), path.ToString());
 					}
 
 					// count resources
@@ -880,7 +922,7 @@ void extract(float a2) {
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
-			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
+			//Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
 			if (!name.Contains("DamnedAltar2"))
 				json["Altar"]["Damned Altar"].push_back({ gps.X, gps.Y });
 			else
@@ -889,11 +931,11 @@ void extract(float a2) {
 
 		// Find the new altars
 		if (name.Contains("StructurePlaceHolder")) {
-			Log::GetLog()->info(" placeholder {} ", name.ToString());
+			//Log::GetLog()->info(" placeholder {} ", name.ToString());
 			auto gps = ActorGPS(actor);
 			auto tags = actor->TagsField();
 			actor->NameField().ToString(&name);
-			Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
+			//Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
 			if (name.Contains("TempleFoundation"))
 				json["Altar"]["Pyramid Site"].push_back({ gps.X, gps.Y });
 			else if (!name.Contains("Pyramid"))
@@ -954,6 +996,13 @@ void extract(float a2) {
 		json["Assets"][location.first] = nullptr;
 		for (auto resource : location.second) {
 			json["Assets"][location.first][resource.first] = resource.second;
+		}
+	}
+
+	for (auto asset : assetType) {
+		json["AssetType"][asset.first] = nullptr;
+		for (auto resource : asset.second) {
+			json["AssetType"][asset.first][resource.first] = resource.second;
 		}
 	}
 

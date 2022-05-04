@@ -75,6 +75,7 @@ for (let x = 0; x < xGrids; x++) {
 }
 let animalcheck = new Set();
 let allassets = new Set();
+let allassettype = {};
 // match data to island instances
 let islands = {};
 let islandExtended = {};
@@ -295,6 +296,13 @@ for (let server in serverConfig.servers) {
 				}
 			}
 		}
+		for (let asset in grids[grid].AssetType) {
+			if (!allassettype[asset]) allassettype[asset] = {};
+			for (let r in grids[grid].AssetType[asset]) {
+				if (!allassettype[asset][r]) allassettype[asset][r] = 0;
+				allassettype[asset][r] += grids[grid].AssetType[asset][r];
+			}
+		}
 	}
 
 	gridList[grid].biomes = Array.from(gridBiomes);
@@ -338,8 +346,8 @@ fs.copyFileSync(resourceDir + 'animals.json', './json/animals.json');
 fs.copyFileSync(resourceDir + 'items.json', './json/items.json');
 fs.copyFileSync(resourceDir + 'loottable.json', './json/loottable.json');
 fs.copyFileSync(resourceDir + 'structures.json', './json/structures.json');
-
 fs.writeFileSync('./json/assets.json', JSON.stringify(Array.from(allassets).sort(), null, '\t'));
+fs.writeFileSync('./json/assettypes.json', JSON.stringify(sortObjByKey(allassettype), null, '\t'));
 fs.writeFileSync('./json/stones.json', JSON.stringify(sortObjByKey(stones), null, '\t'));
 fs.writeFileSync('./json/altars.json', JSON.stringify(sortObjByKey(altars), null, '\t'));
 fs.writeFileSync('./json/regions.json', JSON.stringify(sortObjByKey(regions), null, '\t'));
@@ -671,7 +679,7 @@ function closestNode(l) {
 
 function roundNodeLocation(v) {
 	let step = gridSize / nodesPerAxis;
-	if (v % step == 0) {
+	if (v % step === 0) {
 		return Math.floor(v / step) * step;
 	}
 	return Math.floor(v / step) * step + step;
