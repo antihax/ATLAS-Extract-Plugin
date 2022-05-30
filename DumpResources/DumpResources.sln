@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DebugTools", "DebugTools\De
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChangeAnything", "ChangeAnything\ChangeAnything.vcxproj", "{2AC92E8D-1885-4E8B-80EA-4980CE657F66}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MyNoSeamless", "MyNoSeamless\MyNoSeamless.vcxproj", "{24FFF750-9ABA-424E-9231-3D95589B6327}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -35,6 +37,10 @@ Global
 		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Debug|x64.Build.0 = Debug|x64
 		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Release|x64.ActiveCfg = Release|x64
 		{2AC92E8D-1885-4E8B-80EA-4980CE657F66}.Release|x64.Build.0 = Release|x64
+		{24FFF750-9ABA-424E-9231-3D95589B6327}.Debug|x64.ActiveCfg = Debug|x64
+		{24FFF750-9ABA-424E-9231-3D95589B6327}.Debug|x64.Build.0 = Debug|x64
+		{24FFF750-9ABA-424E-9231-3D95589B6327}.Release|x64.ActiveCfg = Release|x64
+		{24FFF750-9ABA-424E-9231-3D95589B6327}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

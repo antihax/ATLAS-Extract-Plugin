@@ -1,0 +1,4 @@
+start server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=0?ServerY=0?AltSaveDirectoryName=00?ServerAdminPassword=123?QueryPort=5000?Port=6000?MapPlayerLocation=true -NoBattlEye -log -server
+start server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=0?ServerY=1?AltSaveDirectoryName=01?ServerAdminPassword=123?QueryPort=5001?Port=6001?MapPlayerLocation=true -NoBattlEye -log -server
+start server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=1?ServerY=0?AltSaveDirectoryName=10?ServerAdminPassword=123?QueryPort=5002?Port=6002?MapPlayerLocation=true -NoBattlEye -log -server
+start server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=1?ServerY=1?AltSaveDirectoryName=11?ServerAdminPassword=123?QueryPort=5003?Port=6003?MapPlayerLocation=true -NoBattlEye -log -server

@@ -677,6 +677,7 @@ void extract(float a2) {
 			auto type = static_cast<UNPCSpawnEntriesContainer*> (zoneManager->NPCSpawnEntriesContainerObjectField().uClass->ClassDefaultObjectField());
 			type->GetFullName(&name, NULL);
 
+
 			FString boss = "Unknown";
 			if (name.Contains("Dragon")) {
 				boss = "Drake";
@@ -684,6 +685,12 @@ void extract(float a2) {
 			else if (name.Contains("Hydra")) {
 				boss = "Hydra";
 			}
+			else {
+				for (auto b : type->NPCSpawnEntriesField()) {
+					boss = b.AnEntryName;
+				}
+			}
+			Log::GetLog()->info("Boss {}", name.ToString());
 			if (json["Boss"][boss.ToString()].is_null())
 				json["Boss"][boss.ToString()] = nlohmann::json::array();
 			for (auto spawnVolume : zoneManager->LinkedZoneSpawnVolumeEntriesField()) {
@@ -726,11 +733,10 @@ void extract(float a2) {
 		}
 
 		if (name.Contains("OceanEpicNPCZoneManager")) {
-			//Log::GetLog()->info("Found ocean epic {}", name.ToString());
+			Log::GetLog()->info("Found ocean epic {}", name.ToString());
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
 			zoneManager->BeginPlay();
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
-				//Log::GetLog()->info("Found dino epic {}", name.ToString());
 				int count = 0;
 				for (const auto npc : dino.NPCsToSpawn) {
 					if (npc.uClass == NULL)
@@ -738,28 +744,32 @@ void extract(float a2) {
 
 					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
 					type->GetFullName(&name, NULL);
-					//Log::GetLog()->info("animal {}", name.ToString());
+					Log::GetLog()->info("animal {}", name.ToString());
 					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
 
 					if (name.Contains("MeanWhale_SeaMonster")) {
 						if (json["Boss"]["MeanWhale"].is_null())
 							json["Boss"]["MeanWhale"] = nlohmann::json::array();
 						json["Boss"]["MeanWhale"].push_back({ gps.X, gps.Y });
+						Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					if (name.Contains("GentleWhale_SeaMonster")) {
 						if (json["Boss"]["GentleWhale"].is_null())
 							json["Boss"]["GentleWhale"] = nlohmann::json::array();
 						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
+						Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					if (name.Contains("Squid_Character")) {
 						if (json["Boss"]["GiantSquid"].is_null())
 							json["Boss"]["GiantSquid"] = nlohmann::json::array();
 						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
+						Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					count++;
 				}
 			}
 		}
+
 		if (name.Contains("SnowCaveBossManager")) {
 			auto gps = ActorGPS(actor);
 			json["Boss"]["Yeti"] = nlohmann::json::array();
@@ -916,30 +926,15 @@ void extract(float a2) {
 
 		actor->GetFullName(&name, NULL);
 
-		// Find the new altars
-		if (name.Contains("Damned")) {
-			//Log::GetLog()->info(" named node {} ", name.ToString());
+		// Find the altars
+		if (actor->IsA(APrimalStructureStaticNodeContainer::GetPrivateStaticClass(NULL))) {
 			auto gps = ActorGPS(actor);
-			auto tags = actor->TagsField();
-			actor->NameField().ToString(&name);
-			//Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
-			if (!name.Contains("DamnedAltar2"))
-				json["Altar"]["Damned Altar"].push_back({ gps.X, gps.Y });
-			else
-				json["Altar"]["AoTD Altar"].push_back({ gps.X, gps.Y });
-		}
-
-		// Find the new altars
-		if (name.Contains("StructurePlaceHolder")) {
-			//Log::GetLog()->info(" placeholder {} ", name.ToString());
-			auto gps = ActorGPS(actor);
-			auto tags = actor->TagsField();
-			actor->NameField().ToString(&name);
-			//Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), name.ToString(), gps.X, gps.Y);
-			if (name.Contains("TempleFoundation"))
-				json["Altar"]["Pyramid Site"].push_back({ gps.X, gps.Y });
-			else if (!name.Contains("Pyramid"))
-				json["Altar"]["Static"].push_back({ gps.X, gps.Y });
+			auto node = static_cast<APrimalStructureStaticNodeContainer*>(actor);
+			if (node) {
+				auto tags = actor->TagsField();
+				Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), node->DescriptiveNameField().ToString(), gps.X, gps.Y);
+				json["Altar"][node->DescriptiveNameField().ToString()].push_back({ gps.X, gps.Y });
+			}
 		}
 
 		if (
