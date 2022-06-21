@@ -53,15 +53,38 @@ Iter RandomElement(Iter start, Iter end) {
 	return RandomElement(start, end, gen);
 }
 
+#define POLYNOMIAL 0xD8  /* 11011 followed by 0's */
+
+unsigned crc(unsigned char const* data, size_t len)
+{
+	unsigned crc = 0;
+	if (data == NULL)
+		return 0;
+	crc = ~crc & 0xff;
+	while (len--) {
+		crc ^= *data++;
+		for (unsigned k = 0; k < 8; k++)
+			crc = crc & 1 ? (crc >> 1) ^ 0xb2 : crc >> 1;
+	}
+	return crc ^ 0xff;
+}
+
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(ASeamlessVolumeManager_SendPacketToPeerServer, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int, PeerServerMessageType, TArray<unsigned char>*, bool);
 DECLARE_HOOK(ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char, FDefaultAllocator>* TravelData);
+
+// temp
+DECLARE_HOOK(ASeamlessVolumeManager_ApplySeamlessTravelDataBody, char, ASeamlessVolumeManager*, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel);
 
 void Load() {
 	Log::Get().Init("NoSeamless");
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer, &ASeamlessVolumeManager_SendPacketToPeerServer_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, &ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original);
+	
+	// temp
+	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody, &ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original);
+
 }
 
 void Unload() {
@@ -186,8 +209,8 @@ char FetchedTreasure(int requestId, FVector* location, bool cave, float quality)
 void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	TSharedPtr<TArray<unsigned char>> copy = MakeShareable(new TArray<unsigned char>(*bytes));
-	Log::GetLog()->info("got travel log {} {}", TravelLogLine, copy->Num());
-
+	Log::GetLog()->info("got travel log {} {} {} {}", TravelLogLine, copy->Num(), crc(copy->GetData(), copy->Num()), crc(bytes->GetData(), bytes->Num()));
+	
 	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
 }
 
@@ -270,6 +293,11 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 	AShooterGameMode_BeginPlay_original(This, a2);
 }
 
+char Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody(ASeamlessVolumeManager* This, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel) {
+	Log::GetLog()->warn("apply {} {} {} {}", LogLineId, OriginServerId, BodyBytes->Num(), crc(BodyBytes->GetData(), BodyBytes->Num()));
+	return ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original(This, LogLineId, BodyBytes, OriginServerId, bAbortedTravel);
+}
+
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog(ASeamlessVolumeManager* This, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char>* TravelData) {
 	nlohmann::json::binary_t bytes;
 	bytes.resize(TravelData->Num());
@@ -284,10 +312,10 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLo
 		{"peer", DestinationServerId},
 		{"raw", bytes}
 	};
-	Log::GetLog()->warn("sending player to {} {}", DestinationServerId, TravelData->Num());
+	Log::GetLog()->warn("sending player to {} {} {} ", DestinationServerId, TravelData->Num(), crc(TravelData->GetData(), TravelData->Num()));
 	cli.publish(ChannelForServerId(DestinationServerId), json.dump());
 	cli.commit();
-	return NULL; //ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
+	return ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
 }
 
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASeamlessVolumeManager* This, unsigned int Peer, PeerServerMessageType Type, TArray<unsigned char>* Bytes, bool Remote) {
@@ -313,6 +341,8 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	case PSM_Ping:
 	case PSM_Pong:
 	case PSM_TravelLog:
+
+		//Log::GetLog()->warn("send travel log {} {}", Bytes->Num(), crc(Bytes->GetData(), Bytes->Num()));
 		break;
 	default:
 		cli.publish(ChannelCluster, json.dump());
@@ -321,7 +351,7 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	cli.commit();
 
 	// eat the actual call to ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
-	return NULL;
+	return NULL;//ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {

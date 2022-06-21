@@ -1024,6 +1024,7 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, floa
 
 	extract(a2);
 	FWindowsPlatformMisc::RequestExit(true);
+	exit(0);
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {

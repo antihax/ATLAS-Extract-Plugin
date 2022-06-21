@@ -93,4 +93,14 @@ for (let server in serverConfig.servers) {
 	if (s.hiddenAtlasId === "Unknown Depths") console.log(helpers.gridName(s.gridX, s.gridY), s.hiddenAtlasId, s.forceServerRules);
 }
 
+console.log("\n\n# Land Node Keys");
+for (let server in serverConfig.servers) {
+	let s = serverConfig.servers[server];
+
+	for (let island in s.islandInstances) {
+		let i = s.islandInstances[island];
+		if (i.landNodeKey === "Industrial") console.log(helpers.gridName(s.gridX, s.gridY), i.landNodeKey, i.name, s.hiddenAtlasId);
+	}
+}
+
 helpers.sleep(575567);

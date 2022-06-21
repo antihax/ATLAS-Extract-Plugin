@@ -26,6 +26,13 @@ T Get(UProperty* This, UObject* object) {
 }
 
 template<typename T>
+T* GetPtr(UProperty* This, UObject* object) {
+	if (sizeof(T*) != This->ElementSizeField())
+		throw std::invalid_argument("Expected size does not match property size.");
+	return (T*)(object + This->Offset_InternalField());
+}
+
+template<typename T>
 void Set(UProperty* This, UObject* object, T value)
 {
 	if (sizeof(T) != This->ElementSizeField())
@@ -33,10 +40,11 @@ void Set(UProperty* This, UObject* object, T value)
 	*((T*)(object + This->Offset_InternalField())) = value;
 }
 
+// Review UPropertyToJsonValue / ConvertScalarUPropertyToJsonValue
 nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 	nlohmann::json json;
 	auto type = p->ClassField()->NameField().ToString().ToString();
-	if (c->NameField().ToString().Compare(FString("AutoFarm_C"))) {
+	/*if (c->NameField().ToString().Compare(FString("AutoFarm_C"))) {
 		if (p->NameField().ToString().ToString() == "HarvestInterval")
 			Set<float>(p, o, 2.0f);
 		else if (p->NameField().ToString().ToString() == "HarvestRadius")
@@ -51,7 +59,7 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 		}
 		else if (p->NameField().ToString().ToString() == "TransportInterval")
 			Set<float>(p, o, 2.0f);
-	}
+	}*/
 
 	if (type == "BoolProperty") {
 		auto v = Get<bool>(p, o);
@@ -97,15 +105,38 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 		auto v = Get<FName>(p, o);
 		return { {"type", type}, {"value" ,  v.ToString().ToString()} };
 	}
+	else if (type == "ClassProperty") {
+		FString text;
+		auto me = (UClassProperty*)p;
+		me->ExportTextItem(&text, (void*)(long long)(p+(p->ElementSizeField() * p->Offset_InternalField())), 0, 0, 0, 0);
+		if (!text.IsEmpty())
+			Log::GetLog()->info("{} ", text.ToString());
+		return { {"type", type}, {"value", text.ToString() } };
+		
+	}
+	/*else if (type == "StructProperty") {
+//		auto s = Get<UStructProperty*>(p, o);
+	//	Log::GetLog()->info("{} {}", s->NameField().ToString().ToString());
+		nlohmann::json json = {};
+		json[o->NameField().ToString().ToString()] = { {"class", c->NameField().ToString().ToString()}, {"properties", {} } };
+		Log::GetLog()->info("{} {}", o->NameField().ToString().ToString(), c->NameField().ToString().ToString());
+		while (p != NULL) {
+			auto v = getVariableData(o, c, p);
+			json[o->NameField().ToString().ToString()]["properties"][p->NameField().ToString().ToString()] = v;
+			Log::GetLog()->info("{} {}", p->NameField().ToString().ToString(), v);
+			p = p->PropertyLinkNextField();
+		}
+		return  { {"type", type}, {"value" ,  json} };
+	}*/
 	else {
-		return  { {"type", type} };
+		return  { {"type", type} , {"size", p->ElementSizeField()} , {"offset", p->Offset_InternalField()}, {"dimensions", p->ArrayDimField()} };
 	}
 }
 
 nlohmann::json searchObjects() {
 	nlohmann::json json = {};
 	TArray<UObject*> objects;
-	Globals::GetObjectsOfClass(UObject::GetPrivateStaticClass(), &objects, true, EObjectFlags::RF_NoFlags);
+	Globals::GetObjectsOfClass(UClass::GetPrivateStaticClass(), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto o : objects) {
 		auto c = o->ClassField();
 		json[o->NameField().ToString().ToString()] = { {"class", c->NameField().ToString().ToString()}, {"properties", {} } };
@@ -123,12 +154,16 @@ nlohmann::json searchObjects() {
 }
 
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This) {
+	auto GameState = ArkApi::GetApiUtils().GetGameState();
+	Log::GetLog()->info("version: {}.{}", GameState->ServerMajorVersionField(), GameState->ServerMinorVersionField());
 	auto j = searchObjects();
 	std::filesystem::create_directory("changeanything");
-	std::ofstream file("changeanything/objects.json");
+
+	std::ofstream file("changeanything/classes_" + std::to_string(GameState->ServerMajorVersionField()) + "." + std::to_string(GameState->ServerMinorVersionField()) + ".json");
 	file << std::setw(2) << j;
 	file.flush();
 	file.close();
+	Log::GetLog()->info("complete");
 	AShooterGameMode_BeginPlay_original(This);
 }
 
