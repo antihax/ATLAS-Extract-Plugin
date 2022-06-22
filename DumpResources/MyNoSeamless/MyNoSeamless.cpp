@@ -12,6 +12,9 @@
 #pragma comment(lib, "cpp_redis.lib")
 #pragma comment(lib, "tacopie.lib")
 
+// storage
+std::map<unsigned __int64, TArray<unsigned char>* > g_TravelEntries;
+
 enum PeerServerMessageType
 {
 	PSM_Ping = 0x0,
@@ -72,8 +75,6 @@ unsigned crc(unsigned char const* data, size_t len)
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(ASeamlessVolumeManager_SendPacketToPeerServer, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int, PeerServerMessageType, TArray<unsigned char>*, bool);
 DECLARE_HOOK(ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char, FDefaultAllocator>* TravelData);
-
-// temp
 DECLARE_HOOK(ASeamlessVolumeManager_ApplySeamlessTravelDataBody, char, ASeamlessVolumeManager*, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel);
 
 void Load() {
@@ -81,16 +82,14 @@ void Load() {
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer, &ASeamlessVolumeManager_SendPacketToPeerServer_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, &ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original);
-	
-	// temp
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody, &ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original);
-
 }
 
 void Unload() {
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog);
+	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody);
 }
 
 // get server packed id
@@ -116,7 +115,7 @@ int RandomIslandIdForServerId(int serverId) {
 	return *RandomElement(islands.begin(), islands.end());
 };
 
-// get server grid string
+// ServerGrid returns a server grid string
 static const std::string ServerGrid() {
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
 	const char* x[17] = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q" };
@@ -127,27 +126,32 @@ static const std::string ServerGrid() {
 	return gridStr;
 };
 
-// get redis channel
+// ChannelForServerId returns the channel key for a serverId
 static const std::string ChannelForServerId(unsigned int id) {
 	return ChannelServer + std::to_string(id);
 };
 
+// ConnectCallback for redis subscriptions
 void ConnectCallback(const std::string& host, std::size_t port, cpp_redis::connect_state status) {
 	switch (status) {
 	case cpp_redis::connect_state::dropped:
 		Log::GetLog()->info("redis connection dropped");
+		break;
 	case cpp_redis::connect_state::ok:
 		Log::GetLog()->info("redis ready");
+		break;
 	}
 }
 
+// AuthCallback for redis authentication
 void AuthCallback(cpp_redis::reply& reply) {
 	if (reply.is_error()) {
 		Log::GetLog()->info("invalid redis password");
 	}
 }
 
-void FetchTreasure(TArray<unsigned char> *bytes, unsigned int sender) {
+// FetchTreasure handler
+void FetchTreasure(TArray<unsigned char>* bytes, unsigned int sender) {
 	nlohmann::json json;
 	FetchTreasureStruct dest;
 	memcpy(&dest, bytes->GetData(), sizeof(FetchTreasureStruct));
@@ -159,19 +163,20 @@ void FetchTreasure(TArray<unsigned char> *bytes, unsigned int sender) {
 	float outQuality;
 	bool outCave;
 	int tries = 3;
+	// try to find a location three times
 	while (tries > 0) {
+		dest.IslandId = RandomIslandIdForServerId(ServerId());
 		auto island = islandMap.Find(dest.IslandId);
-		if (island == NULL) return;
+		if (island == NULL) continue;
 		if (ServerId() == (*island)->ParentServerIdField()) {
-			auto out = tmm->GenerateTreasureLocationOnIsland(dest.IslandId, dest.InQuality, &outLocation, &outCave, &outQuality, NULL);
-			if (out == 0) {
-				dest.IslandId = RandomIslandIdForServerId(ServerId());
-				continue;
-			}
-
+			if (!tmm->GenerateTreasureLocationOnIsland(dest.IslandId, dest.InQuality, &outLocation, &outCave, &outQuality, NULL))
+				continue; // retry
+			
 			// translate to world location
 			FVector mapGlobal;
 			grid->ServerLocationToGlobalLocation(&mapGlobal, ServerId(), outLocation);
+
+			// send message back to the requesting server
 			json = {
 				{"type", PSM_FetchedTreasureLocation},
 				{"sender", ServerId()},
@@ -193,24 +198,22 @@ void FetchTreasure(TArray<unsigned char> *bytes, unsigned int sender) {
 			cli.commit();
 			break;
 		}
-		else {
-			dest.IslandId = RandomIslandIdForServerId(ServerId());
-		}
 		tries--;
 	}
 }
 
+// FetchedTreasure handler
 char FetchedTreasure(int requestId, FVector* location, bool cave, float quality) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	const auto tmm = sgm->TreasureMapManagerField();
 	return tmm->OnTreasureChestLocationFound(requestId, location, cave, quality);
 }
 
+// TravelLog handler
 void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	TSharedPtr<TArray<unsigned char>> copy = MakeShareable(new TArray<unsigned char>(*bytes));
-	Log::GetLog()->info("got travel log {} {} {} {}", TravelLogLine, copy->Num(), crc(copy->GetData(), copy->Num()), crc(bytes->GetData(), bytes->Num()));
-	
+	g_TravelEntries[TravelLogLine] = bytes;
 	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
 }
 
@@ -255,7 +258,7 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
 	}
 }
 
-// Connect to Redis channel and create a client for publishing
+// connect to Redis channel and create a client for publishing
 void ConnectRedisChannel(FRedisDatabaseConnectionInfo info) {
 	// Connect sub and client
 	sub.connect(info.URL, info.Port, &ConnectCallback, 0U, 10000, 0U);
@@ -279,6 +282,7 @@ void ConnectRedisChannel(FRedisDatabaseConnectionInfo info) {
 	sub.commit();
 }
 
+// initialize the plugin connections on ShooterGameMode::BeginPlay
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 	// start up our redis channel
 	auto ConnectionMap = FDatabaseRedisShared::ConnectionLookups();
@@ -293,15 +297,24 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 	AShooterGameMode_BeginPlay_original(This, a2);
 }
 
+// since this is called on a ticker, inject our redis data if available for the LogLineId, otherwise fall back to a redis rawtraveldata.
 char Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody(ASeamlessVolumeManager* This, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel) {
-	Log::GetLog()->warn("apply {} {} {} {}", LogLineId, OriginServerId, BodyBytes->Num(), crc(BodyBytes->GetData(), BodyBytes->Num()));
-	return ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original(This, LogLineId, BodyBytes, OriginServerId, bAbortedTravel);
+	if (g_TravelEntries[LogLineId]) {
+		auto bytes = g_TravelEntries[LogLineId];
+		auto x = ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original(This, LogLineId, bytes, OriginServerId, bAbortedTravel);
+		g_TravelEntries.erase(LogLineId);
+		return x;
+	}
+	else {
+		return ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original(This, LogLineId, BodyBytes, OriginServerId, bAbortedTravel);
+	}
 }
 
+// hijack and publish travellog over redis instead of seamless port
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog(ASeamlessVolumeManager* This, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char>* TravelData) {
 	nlohmann::json::binary_t bytes;
 	bytes.resize(TravelData->Num());
-	
+
 	for (int i = 0; i < TravelData->Num(); i++) {
 		bytes[i] = TravelData->GetData()[i];
 	}
@@ -312,12 +325,15 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLo
 		{"peer", DestinationServerId},
 		{"raw", bytes}
 	};
-	Log::GetLog()->warn("sending player to {} {} {} ", DestinationServerId, TravelData->Num(), crc(TravelData->GetData(), TravelData->Num()));
+	
 	cli.publish(ChannelForServerId(DestinationServerId), json.dump());
 	cli.commit();
-	return ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
+	
+	// we eat these so no packets are sent
+	return NULL; // ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
 }
 
+// hijack seamless messages and send over redis
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASeamlessVolumeManager* This, unsigned int Peer, PeerServerMessageType Type, TArray<unsigned char>* Bytes, bool Remote) {
 	const auto tmm = ArkApi::GetApiUtils().GetShooterGameMode()->TreasureMapManagerField();
 	const auto instance = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField());
@@ -341,8 +357,6 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	case PSM_Ping:
 	case PSM_Pong:
 	case PSM_TravelLog:
-
-		//Log::GetLog()->warn("send travel log {} {}", Bytes->Num(), crc(Bytes->GetData(), Bytes->Num()));
 		break;
 	default:
 		cli.publish(ChannelCluster, json.dump());
@@ -351,7 +365,7 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	cli.commit();
 
 	// eat the actual call to ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
-	return NULL;//ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
+	return NULL; 
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {
