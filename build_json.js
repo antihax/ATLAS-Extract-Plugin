@@ -536,8 +536,8 @@ async function main() {
 				let n2 = path.Nodes[i];
 				let n1loc = [n1.worldX, n1.worldY];
 				let n2loc = [n2.worldX, n2.worldY];
-				if (n1.RequiredResource && n1.RequiredResource.length > 0) continue; // skip portals with required resources
-				if (n2.RequiredResource && n2.RequiredResource.length > 0) continue; // skip portals with required resources
+				if (n1.RequiredResource && Object.keys(n1.RequiredResource).length > 0) continue; // skip portals with required resources
+				if (n2.RequiredResource && Object.keys(n2.RequiredResource).length > 0) continue; // skip portals with required resources
 				// Link the closest nodes to the portal
 				if (i === 1) linkNodesNearest(n1loc, g);
 				linkNodesNearest(n2loc, g);
