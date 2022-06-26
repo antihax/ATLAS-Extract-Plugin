@@ -1,0 +1,8 @@
+char ATreasureMapManager::GenerateTreasureLocationOnIsland(
+        ATreasureMapManager *this,
+        unsigned int IslandId,
+        float InQuality,
+        FVector *OutLocation,
+        bool *OutIsInCave,
+        float *OutModifiedQuality,
+        FSeamlessIslandInfo *ForIslandInfo)
