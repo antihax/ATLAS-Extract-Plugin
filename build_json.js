@@ -9,6 +9,7 @@ const resourceDir = baseDir + "Binaries/Win64/resources/";
 const workDir = process.cwd();
 const os = require("os");
 const serverConfig = helpers.parseJSONFile(baseDir + "ServerGrid.json");
+const islandInfo = helpers.parseJSONFile(resourceDir + "islandInfo.json");
 const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
@@ -151,6 +152,7 @@ async function main() {
 
 		for (let island in s.islandInstances) {
 			let cp = s.islandInstances[island];
+			if (!cp.id) continue;
 			let i = {
 				id: cp.id,
 				worldX: cp.worldX,
@@ -160,7 +162,8 @@ async function main() {
 				region: s.hiddenAtlasId,
 				islandWidth: cp.islandWidth,
 				islandHeight: cp.islandHeight,
-				isControlPoint: cp.isControlPoint
+				isControlPoint: cp.isControlPoint,
+				islandPoints: islandInfo[cp.id].islandPoints || 0
 			};
 			i.sublevels = [];
 			for (let sl in s.sublevels) {
@@ -190,6 +193,15 @@ async function main() {
 					}
 			}
 
+			switch (cp.landNodeKey) {
+				case "AotD":
+					i.resources["Bone Chips"] = 1;
+					break;
+				case "Industrial":
+					i.resources["Brimstone"] = 1;
+					break;
+			}
+
 			// build animal list
 			let allanimals = new Set();
 			for (let r in grids[grid].Animals) {
@@ -201,21 +213,6 @@ async function main() {
 							gridAnimals.add(animal.name);
 							allanimals.add(animal.name);
 							animalcheck.add(animal.name);
-
-							// print out special animals, check for changes
-
-							let test = {
-								"animals": [{"name": "Parrot"}, {"name": "Parrot"}, {"name": "Parrot"}],
-								"gps": [[-9.99740219116211, -29.757213592529297]],
-								"islandLevelMultiplier": 1.0,
-								"islandLevelOffset": 0,
-								"levelLerp": 0.0,
-								"levelMinOveride": 0,
-								"levelMultiplier": 1.0,
-								"levelOffset": 0,
-								"spawnLimits": [5.0, 80, 45.0]
-							};
-							if (animal.name === "Tiger" && animalList.levelOffset < 60 && animalList.spawnLimits[0] > 24) console.log(i.id, grid, animalList.spawnLimits, animal);
 						}
 					}
 			}
@@ -331,6 +328,7 @@ async function main() {
 
 	fs.copyFileSync(resourceDir + "animals.json", "./json/animals.json");
 	fs.copyFileSync(resourceDir + "items.json", "./json/items.json");
+	fs.copyFileSync(resourceDir + "islandInfo.json", "./json/islandInfo.json");
 	fs.copyFileSync(resourceDir + "loottable.json", "./json/loottable.json");
 	fs.copyFileSync(resourceDir + "structures.json", "./json/structures.json");
 	fs.writeFileSync("./json/assets.json", JSON.stringify(Array.from(allassets).sort(), null, "\t"));
@@ -344,7 +342,7 @@ async function main() {
 	fs.writeFileSync("./json/gridList.json", JSON.stringify(sortObjByKey(gridList), null, "\t"));
 	fs.writeFileSync("./json/shipPaths.json", JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, "\t"));
 	fs.writeFileSync("./json/tradeWinds.json", JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, "\t"));
-	fs.writeFileSync("./json/portals.json", JSON.stringify(sortObjByKey(serverConfig.portalPaths), null, "\t"));
+	fs.writeFileSync("./json/portals.json", JSON.stringify(sortObjByKey(serverConfig.portalPaths || []), null, "\t"));
 
 	let g = graph();
 	// Pass 1: build nodes and link
@@ -356,18 +354,16 @@ async function main() {
 			let lastY;
 			for (let y = s.gridY * gridSize + gridOffset; y < (s.gridY + 1) * gridSize; y += gridSize / nodesPerAxis) {
 				let point = [x, y];
-				let skip = false;
-				for (let island in s.islandInstances) {
+				nodeSearch: for (let island in s.islandInstances) {
 					// skip if the node is inside an island
 					if (helpers.inside(s.islandInstances[island], point)) {
-						skip = true;
 						lastY = undefined;
-						break;
+						continue nodeSearch;
 					}
 				}
-				if (skip) continue;
-				g.addNode(worldToGPS(x, y, gpsBounds).toString(), {});
+				
 				if (lastY !== undefined) {
+				//	g.addNode(worldToGPS(x, y, gpsBounds).toString(), {});
 					g.addLink(worldToGPS(x, y, gpsBounds).toString(), worldToGPS(x, lastY, gpsBounds).toString());
 					g.addLink(worldToGPS(x, lastY, gpsBounds).toString(), worldToGPS(x, y, gpsBounds).toString());
 					if (x > s.gridX * gridSize + gridOffset * 10)
@@ -587,7 +583,7 @@ async function main() {
 					break;
 			}
 
-			g.addNode(destination);
+			//g.addNode(destination);
 			g.addLink(origin, destination);
 			g.addLink(destination, origin);
 		}

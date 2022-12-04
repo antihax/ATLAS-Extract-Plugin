@@ -1,8 +1,7 @@
 {
 	"Acai": "Berry",
-	"Acerolla": "Berry",
+	"Acerola": "Berry",
 	"Agate": "Flint",
-	"Agedwood": "Wood",
 	"Aloe": "Herb",
 	"Amarberry": "BAD",
 	"Amethyst": "Crystal",
@@ -36,7 +35,6 @@
 	"Cotton": "Fiber",
 	"Crude Oil": "Oil",
 	"Crystal": "Base",
-	"Darkwood": "Wood",
 	"Diamond": "Gem",
 	"Edible Greens": "Vegetable",
 	"Elderberry": "Berry",
@@ -63,9 +61,8 @@
 	"Jute": "Fiber",
 	"Kala Namak": "Salt",
 	"Licorice": "Herb",
-	"Lightwood": "Wood",
 	"Lignite": "Coal",
-	"Lignonberry": "Berry",
+	"Lingonberry": "Berry",
 	"Lime": "Vegetable",
 	"Limestone": "Stone",
 	"Maize": "Vegetable",
@@ -112,12 +109,10 @@
 	"Silk": "Fiber",
 	"Silver": "Metal",
 	"Slate": "Stone",
-	"Softwood": "Wood",
 	"Stimberry": "BAD",
 	"Stone": "Base",
 	"Straw": "Fiber",
 	"Strawberry": "Berry",
-	"Strongwood": "Wood",
 	"Sugarcane": "Sugar",
 	"Sugars": "Sugar",
 	"Sulfur": "Coal",
@@ -138,7 +133,6 @@
 	"Cedar": "Wood",
 	"Fir": "Wood",
 	"Ash": "Wood",
-	"Wetwood": "Wood",
 	"Wheat": "Vegetable",
 	"Wheatgrass": "Vegetable",
 	"Wild Beans": "Vegetable",
@@ -169,6 +163,9 @@
 	"Wheat Seed": "Seed",
 	"Turnip Seed": "Seed",
 	"Wood": "Base",
-	"Yarrow": "Herb"
+	"Yarrow": "Herb",
+	"Bone Chips": "Transient",
+	"Brimstone": "Transient"
+	
 	
 }
