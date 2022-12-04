@@ -23,6 +23,7 @@ enum PeerServerMessageType
 	PSM_FetchedTreasureLocation = 0x3,
 	PSM_TravelLog = 0x4,
 	PSM_MAX = 0x5,
+	PSM_FetchTreasureLocationSpecial = 0x6,
 };
 
 static const std::string ChannelCluster = "seamless:cluster";
@@ -76,6 +77,7 @@ DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(ASeamlessVolumeManager_SendPacketToPeerServer, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int, PeerServerMessageType, TArray<unsigned char>*, bool);
 DECLARE_HOOK(ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char, FDefaultAllocator>* TravelData);
 DECLARE_HOOK(ASeamlessVolumeManager_ApplySeamlessTravelDataBody, char, ASeamlessVolumeManager*, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel);
+DECLARE_HOOK(ATreasureMapManager_GiveNewTreasureMapToCharacter, void, ATreasureMapManager*, UPrimalItem* TreasureMapItem, float Quality, AShooterCharacter* ForShooterChar);
 
 void Load() {
 	Log::Get().Init("NoSeamless");
@@ -83,6 +85,7 @@ void Load() {
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer, &ASeamlessVolumeManager_SendPacketToPeerServer_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, &ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody, &ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original);
+	ArkApi::GetHooks().SetHook("ATreasureMapManager.GiveNewTreasureMapToCharacter", &Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter, &ATreasureMapManager_GiveNewTreasureMapToCharacter_original);
 }
 
 void Unload() {
@@ -90,6 +93,7 @@ void Unload() {
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody);
+	ArkApi::GetHooks().DisableHook("ATreasureMapManager.GiveNewTreasureMapToCharacter", &Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter);
 }
 
 // get server packed id
@@ -171,7 +175,7 @@ void FetchTreasure(TArray<unsigned char>* bytes, unsigned int sender) {
 		if (ServerId() == (*island)->ParentServerIdField()) {
 			if (!tmm->GenerateTreasureLocationOnIsland(dest.IslandId, dest.InQuality, &outLocation, &outCave, &outQuality, NULL))
 				continue; // retry
-			
+
 			// translate to world location
 			FVector mapGlobal;
 			grid->ServerLocationToGlobalLocation(&mapGlobal, ServerId(), outLocation);
@@ -202,10 +206,66 @@ void FetchTreasure(TArray<unsigned char>* bytes, unsigned int sender) {
 	}
 }
 
+// FetchTreasureSpecial handler
+void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
+	nlohmann::json json;
+	Log::GetLog()->info("special treasure  {} {} {}", quality, requestId, sender);
+	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
+	const auto tmm = sgm->TreasureMapManagerField();
+	const auto islandMap = sgm->AtlasIslandInfoField();
+	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
+	FVector outLocation;
+	float outQuality;
+	bool outCave;
+	int tries = 3;
+	// try to find a location three times
+	while (tries > 0) {
+		int islandId = RandomIslandIdForServerId(ServerId());
+		auto island = islandMap.Find(islandId);
+		if (island == NULL) continue;
+		if (ServerId() == (*island)->ParentServerIdField()) {
+			if (!tmm->GenerateTreasureLocationOnIsland(islandId, quality, &outLocation, &outCave, &outQuality, NULL))
+				continue; // retry
+
+			Log::GetLog()->info("found treasure  {} {} {}", outQuality, requestId, sender);
+
+			// translate to world location
+			FVector mapGlobal;
+			grid->ServerLocationToGlobalLocation(&mapGlobal, ServerId(), outLocation);
+
+			// send message back to the requesting server
+			json = {
+				{"type", PSM_FetchedTreasureLocation},
+				{"sender", ServerId()},
+				{"peer", sender},
+				{"cave", outCave},
+				{"quality", outQuality},
+				{"raw", {
+						{"bytes", {0}},
+						{"subtype", NULL}
+					}
+				},
+				{"X", mapGlobal.X},
+				{"Y", mapGlobal.Y},
+				{"Z", mapGlobal.Z},
+				{"requestId", requestId}
+			};
+
+			cli.publish(ChannelForServerId(sender), json.dump());
+			cli.commit();
+			break;
+		}
+		tries--;
+	}
+}
+
 // FetchedTreasure handler
 char FetchedTreasure(int requestId, FVector* location, bool cave, float quality) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	const auto tmm = sgm->TreasureMapManagerField();
+
+	Log::GetLog()->info("give treasure to player OnTreasureChestLocationFound  {} {} {}", requestId, location->ToString().ToString(), quality);
+
 	return tmm->OnTreasureChestLocationFound(requestId, location, cave, quality);
 }
 
@@ -219,10 +279,11 @@ void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
 
 void HandleMessage(const std::string& chan, const std::string& msg) {
 	// parse and check validity
+	Log::GetLog()->info("got message {} {}", chan, msg);
 	auto json = nlohmann::json::parse(msg, NULL, false, true);
 	if (json["raw"].is_null())
 		return;
-
+	Log::GetLog()->info("processing message {} {}", chan, msg);
 	auto binary = json["raw"]["bytes"];
 	auto bytes = new TArray<unsigned char>();
 	for (auto v : binary) {
@@ -244,6 +305,14 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
 		break;
 	case PSM_FetchTreasureLocation:
 		FetchTreasure(bytes, sender);
+		break;
+	case PSM_FetchTreasureLocationSpecial:
+		unsigned int requestId;
+		float quality;
+		json["requestId"].get_to(requestId);
+		json["quality"].get_to(quality);
+		Log::GetLog()->info("got special map {} {}", requestId, quality);
+		FetchTreasureSpecial(quality, requestId, sender);
 		break;
 	case PSM_FetchedTreasureLocation:
 		FVector location;
@@ -297,6 +366,60 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 	AShooterGameMode_BeginPlay_original(This, a2);
 }
 
+void Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter(ATreasureMapManager* This, UPrimalItem* TreasureMapItem, float Quality, AShooterCharacter* ForShooterChar) {
+	Log::GetLog()->info("GiveNewTreasureMapToCharacter Q {}", Quality);
+
+	if (!ForShooterChar)
+		return;
+
+
+	/*if ((EObjectFlags)ForShooterChar->ObjectFlagsField() & EObjectFlags::RF_PendingKill)
+		return;*/
+
+	auto pending = This->PendingSpawnTreasureMapsField();
+	
+	AShooterCharacter* player = ForShooterChar;
+	FWeakObjectPtr playerRef;
+	playerRef.operator=(player);
+
+	
+
+	FPendingTreasureMapSpawnInfo spawn;
+	spawn.RequestId = This->RequestCounterField();
+	spawn.TreasureMapItem = TreasureMapItem;
+	spawn.Quality = Quality;
+
+	spawn.MapGiveToCharacter = playerRef;
+	pending.Add(spawn);
+	Log::GetLog()->info("playerRef {} {} {} - {}", playerRef.ObjectIndex, playerRef.ObjectSerialNumber, playerRef.IsValid(), pending.Num());
+	nlohmann::json json;
+
+	// Pack into json structure
+	json = {
+		{"type", PSM_FetchTreasureLocationSpecial},
+		{"sender", ServerId()},
+		{"peer", 0},
+		{"requestId", spawn.RequestId},
+		{"quality", spawn.Quality},
+			{"raw", {
+						{"bytes", {0}},
+						{"subtype", NULL}
+					}
+				},
+	};
+	cli.publish(ChannelCluster, json.dump());
+	cli.commit();
+
+	// Increase request counters
+	if (This->RequestCounterField() >= 0x7FFFFFFF)
+		This->RequestCounterField() = 0;
+	else
+		This->RequestCounterField()++;
+
+	//ATreasureMapManager_GiveNewTreasureMapToCharacter_original(This, TreasureMapItem, Quality, ForShooterChar);
+}
+
+
 // since this is called on a ticker, inject our redis data if available for the LogLineId, otherwise fall back to a redis rawtraveldata.
 char Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody(ASeamlessVolumeManager* This, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel) {
 	if (g_TravelEntries[LogLineId]) {
@@ -325,16 +448,17 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLo
 		{"peer", DestinationServerId},
 		{"raw", bytes}
 	};
-	
+
 	cli.publish(ChannelForServerId(DestinationServerId), json.dump());
 	cli.commit();
-	
+
 	// we eat these so no packets are sent
 	return NULL; // ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
 }
 
 // hijack seamless messages and send over redis
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASeamlessVolumeManager* This, unsigned int Peer, PeerServerMessageType Type, TArray<unsigned char>* Bytes, bool Remote) {
+	Log::GetLog()->info("SendPacketToPeerServer peer {} {} {}", Peer, Type, Remote);
 	const auto tmm = ArkApi::GetApiUtils().GetShooterGameMode()->TreasureMapManagerField();
 	const auto instance = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField());
 	nlohmann::json json;
@@ -365,7 +489,7 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	cli.commit();
 
 	// eat the actual call to ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
-	return NULL; 
+	return NULL;
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {

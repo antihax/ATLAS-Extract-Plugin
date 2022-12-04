@@ -26,6 +26,14 @@ T Get(UProperty* This, UObject* object) {
 }
 
 template<typename T>
+FString GetText(UProperty* This, UObject* object) {
+	FString text;
+	auto me = (T*)(This);
+	me->ExportTextItem(&text, (void*)(object + (This->Offset_InternalField())), 0, object, 0, 0);
+	return text;
+}
+
+template<typename T>
 T* GetPtr(UProperty* This, UObject* object) {
 	if (sizeof(T*) != This->ElementSizeField())
 		throw std::invalid_argument("Expected size does not match property size.");
@@ -61,6 +69,13 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 			Set<float>(p, o, 2.0f);
 	}*/
 
+	if (type == "UserDefinedStruct") {
+		Log::GetLog()->info("{} ", c->NameField().ToString().ToString());
+		auto p = c->PropertyLinkField();
+		while (p != NULL) {
+		}
+	}
+
 	if (type == "BoolProperty") {
 		auto v = Get<bool>(p, o);
 		return  { {"type", type}, {"value" , v} };
@@ -89,6 +104,22 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 		auto v = Get<int32>(p, o);
 		return  { {"type", type}, {"value" , v} };
 	}
+	else if (type == "UInt16Property") {
+		auto v = Get<uint16>(p, o);
+		return  { {"type", type}, {"value" , v} };
+	}
+	else if (type == "Int16Property") {
+		auto v = Get<int16>(p, o);
+		return  { {"type", type}, {"value" , v} };
+	}
+	else if (type == "UInt8Property") {
+		auto v = Get<uint8>(p, o);
+		return  { {"type", type}, {"value" , v} };
+	}
+	else if (type == "Int8Property") {
+		auto v = Get<int8>(p, o);
+		return  { {"type", type}, {"value" , v} };
+	}
 	else if (type == "IntProperty") {
 		auto v = Get<int>(p, o);
 		return  { {"type", type}, {"value" , v} };
@@ -105,16 +136,36 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 		auto v = Get<FName>(p, o);
 		return { {"type", type}, {"value" ,  v.ToString().ToString()} };
 	}
-	else if (type == "ClassProperty") {
-		FString text;
-		auto me = (UClassProperty*)p;
-		me->ExportTextItem(&text, (void*)(long long)(p+(p->ElementSizeField() * p->Offset_InternalField())), 0, 0, 0, 0);
-		if (!text.IsEmpty())
-			Log::GetLog()->info("{} ", text.ToString());
-		return { {"type", type}, {"value", text.ToString() } };
-		
-	}
-	/*else if (type == "StructProperty") {
+	else if (type == "ClassProperty") 
+		return { {"type", type}, {"value", GetText<UClassProperty>(p, o).ToString() }};
+	
+	else if (type == "StructProperty") 
+		return { {"type", type}, {"value", GetText<UStructProperty>(p, o).ToString() } };
+
+	else if (type == "ArrayProperty")
+		return { {"type", type}, {"value", GetText<UArrayProperty>(p, o).ToString() } };
+
+	else if (type == "ObjectProperty")
+		return { {"type", type}, {"value", GetText<UObjectProperty>(p, o).ToString() } };
+
+	else if (type == "TextProperty")
+		return { {"type", type}, {"value", GetText<UTextProperty>(p, o).ToString() } };
+
+	else if (type == "DelegateProperty")
+		return { {"type", type}, {"value", GetText<UDelegateProperty>(p, o).ToString() } };
+
+	else if (type == "MulticastDelegateProperty")
+		return { {"type", type}, {"value", GetText<UMulticastDelegateProperty>(p, o).ToString() } };
+	
+	else if (type == "WeakObjectProperty")
+		return { {"type", type}, {"value", GetText<UWeakObjectProperty>(p, o).ToString() } };
+
+	else if (type == "InterfaceProperty")
+		return { {"type", type}, {"value", GetText<UInterfaceProperty>(p, o).ToString() } };
+
+	
+	
+		/*
 //		auto s = Get<UStructProperty*>(p, o);
 	//	Log::GetLog()->info("{} {}", s->NameField().ToString().ToString());
 		nlohmann::json json = {};

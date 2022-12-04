@@ -10,12 +10,23 @@
 
 #pragma comment(lib, "AtlasApi.lib")
 
+DECLARE_HOOK(FOutputDevice_FormatLogLine, FString*,  FString*, __int32, const FName*, const wchar_t*, __int32);
+
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
 DECLARE_HOOK(AShooterGameMode_InitOptions, void, AShooterGameMode*, FString);
 DECLARE_HOOK(AShooterGameMode_InitOptionString, void, AShooterGameMode*, FString, FString, FString);
 DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FString, FString, FString, int);
 DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
 DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
+
+const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
+
+// get server packed id
+static const unsigned int ServerId() {
+	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
+	return grid->GetCurrentServerId();
+};
+
 
 static void GPSBounds() {
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
@@ -143,8 +154,6 @@ void dumpItems() {
 	TArray<UObject*> types;
 	Globals::GetObjectsOfClass(UPrimalItem::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
 
-	const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
-
 	for (auto object : types) {
 		auto n = static_cast<UPrimalItem*> (object);
 		FString name;
@@ -208,6 +217,25 @@ void dumpItems() {
 	file.close();
 }
 
+void dumpIslandInfo() {
+	nlohmann::json json;
+	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
+	const auto islandMap = sgm->AtlasIslandInfoField();
+
+	for (auto i : islandMap) {
+		if (i.Key && i.Value->IslandIdField())
+			json[std::to_string(i.Value->IslandIdField())] = {
+				{"id", i.Value->IslandIdField()},
+				{"islandPoints", i.Value->IslandPointsField()}
+		};
+	}
+
+	std::filesystem::create_directory("resources");
+	std::ofstream file("resources/islandInfo.json");
+	file << std::setw(4) << json << std::endl;
+	file.flush();
+	file.close();
+}
 
 void dumpShips() {
 	nlohmann::json json;
@@ -269,6 +297,7 @@ void dumpStructures() {
 		auto n = static_cast<APrimalStructure*> (object);
 		FString name;
 		n->NameField().ToString(&name);
+		
 		json["Structures"][name.ToString()]["DecayTimeDays"] = n->DecayDestructionPeriodMultiplierField() * n->DecayDestructionPeriodField() / 86400;
 		json["Structures"][name.ToString()]["DecayTimeNoFlagDays"] = n->NoClaimFlagDecayDestructionPeriodMultiplierField() * n->NoClaimFlagDecayDestructionPeriodField() / 86400;
 		json["Structures"][name.ToString()]["PreventPlacingNearEnemyRadius"] = n->PreventPlacingNearEnemyRadiusField();
@@ -485,6 +514,13 @@ void dumpAnimals() {
 		json["Animals"][name.ToString()]["requiredAffinity"] = n->RequiredTameAffinityField();
 		json["Animals"][name.ToString()]["requiredAffinityPerBaseLevel"] = n->RequiredTameAffinityPerBaseLevelField();
 
+		//Log::GetLog()->info("animal {} stats {}", name.ToString(), n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize());
+
+		if (n->GetCharacterStatusComponent() && n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize() > 0)
+			for (int i = 0; i < n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize(); i++) {
+				json["Animals"][name.ToString()]["baseStatValue"][statNames[i]] = n->MyCharacterStatusComponentField()->BaseLevelMaxStatusValuesField()()[i];
+			}
+
 		if (n->DinoSettingsClassField().uClass) {
 			const auto dsc = static_cast<UPrimalDinoSettings*>(n->DinoSettingsClassField().uClass->GetDefaultObject(true));
 			json["Animals"][name.ToString()]["foodPreference"] = dsc->DinoFoodTypeNameField().ToString();
@@ -566,6 +602,7 @@ void extract(float a2) {
 	dumpStructures();
 	dumpShips();
 	dumpLootTables();
+	dumpIslandInfo();
 	dumpAnimals();
 
 	// Get discovery Zones
@@ -1025,6 +1062,18 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, floa
 	extract(a2);
 	FWindowsPlatformMisc::RequestExit(true);
 	exit(0);
+	Log::GetLog()->info("would exit");
+}
+
+
+//FString* FOutputDevice_FormatLogLine(FString* result, ELogVerbosity::Type Verbosity, const FName* Category, const wchar_t* Message, ELogTimes::Type LogTime)
+
+
+FString* Hook_FOutputDevice_FormatLogLine(FString* result, __int32 Verbosity, const FName* Category, const wchar_t* Message, __int32 LogTime) {
+		//Log::GetLog()->info("{} {}", Verbosity, FString(Message).ToString());
+		if (Message && FString(Message).Len()>0)
+			std::cout << FString(Message).ToString() << std::endl;
+		return FOutputDevice_FormatLogLine_original(result, Verbosity, Category, Message, LogTime);
 }
 
 void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
@@ -1050,6 +1099,8 @@ void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString Comman
 void Load() {
 	Log::Get().Init("DumpResources");
 
+	ArkApi::GetHooks().SetHook("FOutputDevice.FormatLogLine", &Hook_FOutputDevice_FormatLogLine, &FOutputDevice_FormatLogLine_original);
+
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions, &AShooterGameMode_InitOptions_original);
 	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString, &AShooterGameMode_InitOptionString_original);
@@ -1059,6 +1110,8 @@ void Load() {
 }
 
 void Unload() {
+	ArkApi::GetHooks().DisableHook("FOutputDevice.FormatLogLine", &Hook_FOutputDevice_FormatLogLine);
+
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay);
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions);
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString);
