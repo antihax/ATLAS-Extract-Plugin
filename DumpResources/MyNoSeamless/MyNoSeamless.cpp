@@ -209,7 +209,6 @@ void FetchTreasure(TArray<unsigned char>* bytes, unsigned int sender) {
 // FetchTreasureSpecial handler
 void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
 	nlohmann::json json;
-	Log::GetLog()->info("special treasure  {} {} {}", quality, requestId, sender);
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	const auto tmm = sgm->TreasureMapManagerField();
 	const auto islandMap = sgm->AtlasIslandInfoField();
@@ -217,9 +216,10 @@ void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
 	FVector outLocation;
 	float outQuality;
 	bool outCave;
-	int tries = 3;
+	int tries = 10;
 	// try to find a location three times
 	while (tries > 0) {
+		tries--;
 		int islandId = RandomIslandIdForServerId(ServerId());
 		auto island = islandMap.Find(islandId);
 		if (island == NULL) continue;
@@ -227,7 +227,7 @@ void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
 			if (!tmm->GenerateTreasureLocationOnIsland(islandId, quality, &outLocation, &outCave, &outQuality, NULL))
 				continue; // retry
 
-			Log::GetLog()->info("found treasure  {} {} {}", outQuality, requestId, sender);
+			Log::GetLog()->info("found treasure Quality: {} RequestID: {}", outQuality, requestId);
 
 			// translate to world location
 			FVector mapGlobal;
@@ -255,34 +255,31 @@ void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
 			cli.commit();
 			break;
 		}
-		tries--;
 	}
 }
 
 // FetchedTreasure handler
-char FetchedTreasure(int requestId, FVector* location, bool cave, float quality) {
+void FetchedTreasure(int requestId, FVector* location, bool cave, float quality) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
 	const auto tmm = sgm->TreasureMapManagerField();
-
-	Log::GetLog()->info("give treasure to player OnTreasureChestLocationFound  {} {} {}", requestId, location->ToString().ToString(), quality);
-
-	return tmm->OnTreasureChestLocationFound(requestId, location, cave, quality);
+	tmm->OnTreasureChestLocationFound(requestId, location, cave, quality);
 }
 
 // TravelLog handler
 void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
-	TSharedPtr<TArray<unsigned char>> copy = MakeShareable(new TArray<unsigned char>(*bytes));
+	TSharedPtr<TArray<unsigned char>> copy = MakeShareable(bytes);
 	g_TravelEntries[TravelLogLine] = bytes;
 	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
 }
 
 void HandleMessage(const std::string& chan, const std::string& msg) {
 	// parse and check validity
-	Log::GetLog()->info("got message {} {}", chan, msg);
+//	Log::GetLog()->info("got message {} {}", chan, msg);
 	auto json = nlohmann::json::parse(msg, NULL, false, true);
 	if (json["raw"].is_null())
 		return;
+
 	Log::GetLog()->info("processing message {} {}", chan, msg);
 	auto binary = json["raw"]["bytes"];
 	auto bytes = new TArray<unsigned char>();
@@ -311,7 +308,6 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
 		float quality;
 		json["requestId"].get_to(requestId);
 		json["quality"].get_to(quality);
-		Log::GetLog()->info("got special map {} {}", requestId, quality);
 		FetchTreasureSpecial(quality, requestId, sender);
 		break;
 	case PSM_FetchedTreasureLocation:
@@ -367,33 +363,22 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 }
 
 void Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter(ATreasureMapManager* This, UPrimalItem* TreasureMapItem, float Quality, AShooterCharacter* ForShooterChar) {
-	Log::GetLog()->info("GiveNewTreasureMapToCharacter Q {}", Quality);
-
 	if (!ForShooterChar)
 		return;
 
-
-	/*if ((EObjectFlags)ForShooterChar->ObjectFlagsField() & EObjectFlags::RF_PendingKill)
-		return;*/
-
-	auto pending = This->PendingSpawnTreasureMapsField();
-	
 	AShooterCharacter* player = ForShooterChar;
 	FWeakObjectPtr playerRef;
 	playerRef.operator=(player);
-
 	
-
 	FPendingTreasureMapSpawnInfo spawn;
 	spawn.RequestId = This->RequestCounterField();
 	spawn.TreasureMapItem = TreasureMapItem;
 	spawn.Quality = Quality;
 
 	spawn.MapGiveToCharacter = playerRef;
-	pending.Add(spawn);
-	Log::GetLog()->info("playerRef {} {} {} - {}", playerRef.ObjectIndex, playerRef.ObjectSerialNumber, playerRef.IsValid(), pending.Num());
-	nlohmann::json json;
+	This->PendingSpawnTreasureMapsField().Add(spawn);
 
+	nlohmann::json json;
 	// Pack into json structure
 	json = {
 		{"type", PSM_FetchTreasureLocationSpecial},
@@ -415,8 +400,6 @@ void Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter(ATreasureMapManager*
 		This->RequestCounterField() = 0;
 	else
 		This->RequestCounterField()++;
-
-	//ATreasureMapManager_GiveNewTreasureMapToCharacter_original(This, TreasureMapItem, Quality, ForShooterChar);
 }
 
 
@@ -458,7 +441,6 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLo
 
 // hijack seamless messages and send over redis
 PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASeamlessVolumeManager* This, unsigned int Peer, PeerServerMessageType Type, TArray<unsigned char>* Bytes, bool Remote) {
-	Log::GetLog()->info("SendPacketToPeerServer peer {} {} {}", Peer, Type, Remote);
 	const auto tmm = ArkApi::GetApiUtils().GetShooterGameMode()->TreasureMapManagerField();
 	const auto instance = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField());
 	nlohmann::json json;
