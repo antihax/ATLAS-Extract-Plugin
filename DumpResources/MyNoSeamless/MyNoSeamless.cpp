@@ -3,6 +3,7 @@
 #include <random>
 #include <iterator>
 #include "json.hpp"
+#include <thread>
 
 #define _WS2DEF_ // hack we already have these
 #define _WINSOCK2API_ // hack we already have these
@@ -14,6 +15,7 @@
 
 // storage
 std::map<unsigned __int64, TArray<unsigned char>* > g_TravelEntries;
+std::map<int, std::chrono::system_clock::time_point> g_LastSeen;
 
 enum PeerServerMessageType
 {
@@ -24,6 +26,7 @@ enum PeerServerMessageType
 	PSM_TravelLog = 0x4,
 	PSM_MAX = 0x5,
 	PSM_FetchTreasureLocationSpecial = 0x6,
+	PSM_HeartBeat = 0x7,
 };
 
 static const std::string ChannelCluster = "seamless:cluster";
@@ -74,6 +77,7 @@ unsigned crc(unsigned char const* data, size_t len)
 }
 
 DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
+DECLARE_HOOK(ASeamlessVolume_CanTravelToOtherServer, char, ASeamlessVolume*, const FOtherServerData*);
 DECLARE_HOOK(ASeamlessVolumeManager_SendPacketToPeerServer, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int, PeerServerMessageType, TArray<unsigned char>*, bool);
 DECLARE_HOOK(ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, PeerServerConnectionData*, ASeamlessVolumeManager*, unsigned int DestinationServerId, unsigned __int64 TravelLogLine, TArray<unsigned char, FDefaultAllocator>* TravelData);
 DECLARE_HOOK(ASeamlessVolumeManager_ApplySeamlessTravelDataBody, char, ASeamlessVolumeManager*, unsigned __int64 LogLineId, const TArray<unsigned char, FDefaultAllocator>* BodyBytes, unsigned int OriginServerId, bool bAbortedTravel);
@@ -82,6 +86,7 @@ DECLARE_HOOK(ATreasureMapManager_GiveNewTreasureMapToCharacter, void, ATreasureM
 void Load() {
 	Log::Get().Init("NoSeamless");
 	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
+	ArkApi::GetHooks().SetHook("ASeamlessVolume.CanTravelToOtherServer", &Hook_ASeamlessVolume_CanTravelToOtherServer, &ASeamlessVolume_CanTravelToOtherServer_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer, &ASeamlessVolumeManager_SendPacketToPeerServer_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog, &ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original);
 	ArkApi::GetHooks().SetHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody, &ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original);
@@ -90,6 +95,7 @@ void Load() {
 
 void Unload() {
 	ArkApi::GetHooks().DisableHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay);
+	ArkApi::GetHooks().DisableHook("ASeamlessVolume.CanTravelToOtherServer", &Hook_ASeamlessVolume_CanTravelToOtherServer);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.SendPacketToPeerServer", &Hook_ASeamlessVolumeManager_SendPacketToPeerServer);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.NotifyPeerServerOfTravelLog", &Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLog);
 	ArkApi::GetHooks().DisableHook("ASeamlessVolumeManager.ApplySeamlessTravelDataBody", &Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody);
@@ -273,14 +279,15 @@ void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
 	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
 }
 
+
 void HandleMessage(const std::string& chan, const std::string& msg) {
 	// parse and check validity
-//	Log::GetLog()->info("got message {} {}", chan, msg);
+	FVector location;
 	auto json = nlohmann::json::parse(msg, NULL, false, true);
 	if (json["raw"].is_null())
 		return;
 
-	Log::GetLog()->info("processing message {} {}", chan, msg);
+	//Log::GetLog()->info("processing message {} {}", chan, msg);
 	auto binary = json["raw"]["bytes"];
 	auto bytes = new TArray<unsigned char>();
 	for (auto v : binary) {
@@ -311,19 +318,21 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
 		FetchTreasureSpecial(quality, requestId, sender);
 		break;
 	case PSM_FetchedTreasureLocation:
-		FVector location;
-
 		json["X"].get_to(location.X);
 		json["Y"].get_to(location.Y);
 		json["Z"].get_to(location.Z);
 
 		FetchedTreasure(json["requestId"], &location, json["cave"], json["quality"]);
-
+		break;
+	case PSM_HeartBeat:
+		g_LastSeen[sender] = std::chrono::system_clock::now();
 		break;
 	}
 }
 
 // connect to Redis channel and create a client for publishing
+std::thread heartbeat;
+bool stopbeating;
 void ConnectRedisChannel(FRedisDatabaseConnectionInfo info) {
 	// Connect sub and client
 	sub.connect(info.URL, info.Port, &ConnectCallback, 0U, 10000, 0U);
@@ -345,6 +354,27 @@ void ConnectRedisChannel(FRedisDatabaseConnectionInfo info) {
 	Log::GetLog()->info("subscribing to {}", ChannelForServerId(ServerId()));
 	sub.subscribe(ChannelForServerId(ServerId()), &HandleMessage);
 	sub.commit();
+	
+	heartbeat = std::thread([]()
+	{
+		while (!stopbeating) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(250));
+			nlohmann::json json;
+			// Pack into json structure
+			json = {
+				{"type", PSM_HeartBeat},
+				{"sender", ServerId()},
+				{"peer", 0},
+				{"raw", {
+								{"bytes", {0}},
+								{"subtype", NULL}
+							}
+						},
+			};
+			cli.publish(ChannelCluster, json.dump());
+			cli.commit();
+		}
+	});
 }
 
 // initialize the plugin connections on ShooterGameMode::BeginPlay
@@ -360,6 +390,17 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 		}
 	}
 	AShooterGameMode_BeginPlay_original(This, a2);
+}
+
+char Hook_ASeamlessVolume_CanTravelToOtherServer(ASeamlessVolume* This, const FOtherServerData* OtherServerData) {
+	// Read heartbeat and look for half second or lower
+	if (g_LastSeen.find(OtherServerData->OtherServerId) == g_LastSeen.end())
+		return 0;
+
+		std::chrono::duration<double> diff = std::chrono::system_clock::now() - g_LastSeen[OtherServerData->OtherServerId];
+		if (diff.count() > 0.5)
+			return 0;
+		return 1; 
 }
 
 void Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter(ATreasureMapManager* This, UPrimalItem* TreasureMapItem, float Quality, AShooterCharacter* ForShooterChar) {
@@ -480,6 +521,8 @@ BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lp
 		Load();
 		break;
 	case DLL_PROCESS_DETACH:
+		stopbeating = true;
+		heartbeat.join();
 		Unload();
 		break;
 	}
