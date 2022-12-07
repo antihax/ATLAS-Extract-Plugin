@@ -113,7 +113,8 @@
     "FUseItemAddCharacterStatusValue",
     "FStatusValueModifierDescription",
     "FInternetAddrBSD",
-    "ABiomeZoneVolume"
+    "ABiomeZoneVolume",
+    "ATreasureMapManager"
   ],
   "functions": [
     "StaticLoadObject",

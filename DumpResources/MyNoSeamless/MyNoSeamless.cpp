@@ -233,7 +233,7 @@ void FetchTreasureSpecial(float quality, int requestId, unsigned int sender) {
 			if (!tmm->GenerateTreasureLocationOnIsland(islandId, quality, &outLocation, &outCave, &outQuality, NULL))
 				continue; // retry
 
-			Log::GetLog()->info("found treasure Quality: {} RequestID: {}", outQuality, requestId);
+			//Log::GetLog()->info("found treasure Quality: {} RequestID: {}", outQuality, requestId);
 
 			// translate to world location
 			FVector mapGlobal;
@@ -394,13 +394,15 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 
 char Hook_ASeamlessVolume_CanTravelToOtherServer(ASeamlessVolume* This, const FOtherServerData* OtherServerData) {
 	// Read heartbeat and look for half second or lower
+	//Log::GetLog()->info("message {} {} {}", OtherServerData->OtherServerId, diff.count(), diff.count() > 0.5);
+
 	if (g_LastSeen.find(OtherServerData->OtherServerId) == g_LastSeen.end())
 		return 0;
-
-		std::chrono::duration<double> diff = std::chrono::system_clock::now() - g_LastSeen[OtherServerData->OtherServerId];
-		if (diff.count() > 0.5)
-			return 0;
-		return 1; 
+	
+	std::chrono::duration<double> diff = std::chrono::system_clock::now() - g_LastSeen[OtherServerData->OtherServerId];
+	if (diff.count() > 0.5)
+		return 0;
+	return 1; 
 }
 
 void Hook_ATreasureMapManager_GiveNewTreasureMapToCharacter(ATreasureMapManager* This, UPrimalItem* TreasureMapItem, float Quality, AShooterCharacter* ForShooterChar) {
