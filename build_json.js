@@ -9,7 +9,7 @@ const resourceDir = baseDir + "Binaries/Win64/resources/";
 const workDir = process.cwd();
 const os = require("os");
 const serverConfig = helpers.parseJSONFile(baseDir + "ServerGrid.json");
-const islandInfo = helpers.parseJSONFile(resourceDir + "islandInfo.json");
+
 const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
@@ -52,7 +52,7 @@ async function main() {
 	console.log("processing...");
 	// Process stuff
 	const gpsBounds = helpers.parseJSONFile(resourceDir + "gpsbounds.json");
-
+	const islandInfo = helpers.parseJSONFile(resourceDir + "islandInfo.json");
 	// load resources
 	let grids = {};
 	let stones = [];
