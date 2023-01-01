@@ -272,11 +272,19 @@ void FetchedTreasure(int requestId, FVector* location, bool cave, float quality)
 }
 
 // TravelLog handler
-void TravelLog(unsigned __int64 TravelLogLine, TArray<unsigned char>* bytes) {
-	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
-	TSharedPtr<TArray<unsigned char>> copy = MakeShareable(bytes);
-	g_TravelEntries[TravelLogLine] = bytes;
-	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
+void TravelLog(unsigned __int64 TravelLogLine) {
+	Log::GetLog()->info("get {}", TravelLogLine);
+	cli.get("MyNoSeamless:" + std::to_string(TravelLogLine), [TravelLogLine](cpp_redis::reply& reply) {
+		const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
+		TArray<unsigned char>* bytes = new TArray<unsigned char>((unsigned char*)reply.as_string().c_str(), reply.as_string().size());
+		TSharedPtr<TArray<unsigned char>> copy = MakeShareable(bytes);
+		g_TravelEntries[TravelLogLine] = bytes;
+		Log::GetLog()->info("doing TravelLog {}", TravelLogLine);
+	//	sgm->SharedLogTravelNotification(TravelLogLine, &copy);
+	
+	});
+	cli.commit();
+	Log::GetLog()->info("done done TravelLog  {}", TravelLogLine);
 }
 
 
@@ -305,7 +313,9 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
 	case PSM_Pong:
 		break;
 	case PSM_TravelLog:
-		TravelLog(json["log"], bytes);
+		Log::GetLog()->info("Got TravelLog");
+		TravelLog(json["log"]);
+		Log::GetLog()->info("Done main TravelLog");
 		break;
 	case PSM_FetchTreasureLocation:
 		FetchTreasure(bytes, sender);
@@ -394,12 +404,13 @@ void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This, float a2) {
 
 char Hook_ASeamlessVolume_CanTravelToOtherServer(ASeamlessVolume* This, const FOtherServerData* OtherServerData) {
 	// Read heartbeat and look for half second or lower
+	std::chrono::duration<double> diff = std::chrono::system_clock::now() - g_LastSeen[OtherServerData->OtherServerId];
 	//Log::GetLog()->info("message {} {} {}", OtherServerData->OtherServerId, diff.count(), diff.count() > 0.5);
 
 	if (g_LastSeen.find(OtherServerData->OtherServerId) == g_LastSeen.end())
 		return 0;
 	
-	std::chrono::duration<double> diff = std::chrono::system_clock::now() - g_LastSeen[OtherServerData->OtherServerId];
+	
 	if (diff.count() > 0.5)
 		return 0;
 	return 1; 
@@ -455,6 +466,7 @@ char Hook_ASeamlessVolumeManager_ApplySeamlessTravelDataBody(ASeamlessVolumeMana
 		return x;
 	}
 	else {
+		Log::GetLog()->info("Failed to get log {} for transfer", LogLineId);
 		return ASeamlessVolumeManager_ApplySeamlessTravelDataBody_original(This, LogLineId, BodyBytes, OriginServerId, bAbortedTravel);
 	}
 }
@@ -472,14 +484,20 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_NotifyPeerServerOfTravelLo
 		{"sender", ServerId()},
 		{"log", TravelLogLine},
 		{"peer", DestinationServerId},
-		{"raw", bytes}
+		{"raw", {
+					{"bytes", 0},
+					{"subtype", NULL}
+				}
+			}
 	};
 
+	cli.setex("MyNoSeamless:" + std::to_string(TravelLogLine), 84200, {bytes.begin(), bytes.end()});
+	cli.commit();
 	cli.publish(ChannelForServerId(DestinationServerId), json.dump());
 	cli.commit();
 
 	// we eat these so no packets are sent
-	return NULL; // ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
+	return ASeamlessVolumeManager_NotifyPeerServerOfTravelLog_original(This, DestinationServerId, TravelLogLine, TravelData);
 }
 
 // hijack seamless messages and send over redis
@@ -502,10 +520,16 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 		{"raw", bytes}
 	};
 
+	PeerServerConnectionData* ret = new PeerServerConnectionData();
+	ret->Success = true;
+	ret->OtherServerId = Peer;
+	Log::GetLog()->info("SendPacketToPeerServer {} {} {}", Type, Peer, Remote);
 	switch (Type) {
 	case PSM_Ping:
 	case PSM_Pong:
 	case PSM_TravelLog:
+		
+		
 		break;
 	default:
 		cli.publish(ChannelCluster, json.dump());
@@ -514,7 +538,7 @@ PeerServerConnectionData* Hook_ASeamlessVolumeManager_SendPacketToPeerServer(ASe
 	cli.commit();
 
 	// eat the actual call to ASeamlessVolumeManager_SendPacketToPeerServer_original(This, Peer, Type, Bytes, Remote);
-	return NULL;
+	return ret;
 }
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {
