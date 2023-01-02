@@ -308,7 +308,7 @@ async function main() {
 	// save everything
 	fs.writeFileSync(
 		"./json/config.js",
-		"const config = " +
+		
 			JSON.stringify(
 				sortObjByKey({
 					ServersX: serverConfig.totalGridsX,
@@ -320,7 +320,12 @@ async function main() {
 					XScale: 200 / Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
 					YScale: 200 / Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
 					NodesPerAxis: nodesPerAxis,
-					GridOffset: gridOffset
+					GridOffset: gridOffset,
+					KofiLink: true,
+					ItemLink: true,
+					PathFinder: true,
+					PinTool: true,
+					AtlasMapServer: false
 				}),
 				null,
 				"\t"
