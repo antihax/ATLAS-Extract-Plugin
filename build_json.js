@@ -9,7 +9,7 @@ const resourceDir = baseDir + "Binaries/Win64/resources/";
 const workDir = process.cwd();
 const os = require("os");
 const serverConfig = helpers.parseJSONFile(baseDir + "ServerGrid.json");
-const islandInfo = helpers.parseJSONFile(resourceDir + "islandInfo.json");
+
 const xGrids = serverConfig.totalGridsX;
 const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
@@ -43,6 +43,7 @@ async function buildData() {
 	}
 	await Promise.all(tasks);
 	process.chdir(workDir);
+	pool.close();
 }
 
 async function main() {
@@ -52,7 +53,7 @@ async function main() {
 	console.log("processing...");
 	// Process stuff
 	const gpsBounds = helpers.parseJSONFile(resourceDir + "gpsbounds.json");
-
+	const islandInfo = helpers.parseJSONFile(resourceDir + "islandInfo.json");
 	// load resources
 	let grids = {};
 	let stones = [];
@@ -344,8 +345,11 @@ async function main() {
 	fs.writeFileSync("./json/tradeWinds.json", JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, "\t"));
 	fs.writeFileSync("./json/portals.json", JSON.stringify(sortObjByKey(serverConfig.portalPaths || []), null, "\t"));
 
+	console.log("json saved.");
+
 	let g = graph();
 	// Pass 1: build nodes and link
+	console.log("pathfinding pass 1...");
 	for (let server in serverConfig.servers) {
 		let s = serverConfig.servers[server];
 		if (s.isMawWatersServer) continue; // skip maw waters server
@@ -398,6 +402,7 @@ async function main() {
 	}
 
 	// Pass 2: link grid borders
+	console.log("pathfinding pass 2...");
 	const region = helpers.parseJSONFile("./json/regions.json");
 	for (let server in serverConfig.servers) {
 		let s = serverConfig.servers[server];
@@ -556,11 +561,12 @@ async function main() {
 	}
 
 	let pathfinder = [];
-
+	console.log("pathfinding build...");
 	g.forEachLink(function (link) {
 		pathfinder.push({f: link.fromId, t: link.toId});
 	});
 	fs.writeFileSync("./json/pathfinder.json", JSON.stringify(pathfinder));
+	console.log("pathfinding complete.");
 
 	function linkNodesNearest([x1, y1], g) {
 		for (let i = 0; i < 4; i++) {
