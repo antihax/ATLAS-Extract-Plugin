@@ -325,7 +325,8 @@ async function main() {
 					ItemLink: true,
 					PathFinder: true,
 					PinTool: true,
-					AtlasMapServer: false
+					AtlasMapServer: false,
+					WarehouseTool: false
 				}),
 				null,
 				"\t"
