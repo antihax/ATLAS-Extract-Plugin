@@ -22,6 +22,8 @@ async function buildData() {
 	if (process.argv.includes("manualmanagedmods")) {
 		extraArgs += " -manualmanagedmods";
 	}
+
+	extraArgs += " -culture=en";
 	process.chdir("DumpResources");
 
 	let tasks = [];
