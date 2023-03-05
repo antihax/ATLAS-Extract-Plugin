@@ -11,7 +11,11 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\build_json.js"
+            "program": "${workspaceFolder}\\build_json.js",
+            "args": ["manualmanagedmods"],
+            "runtimeArgs": [
+                "--max-old-space-size=8096"
+            ]
         },
         {
             "type": "pwa-node",
@@ -21,7 +25,10 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\build_json.js",
-            "args": ["nobuild"]
+            "args": ["nobuild"],
+            "runtimeArgs": [
+                "--max-old-space-size=8096"
+            ]
         },
         {
             "type": "pwa-node",
@@ -31,7 +38,11 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\build_json.js",
-            "args": ["nobuild", "debug"]
+            "args": ["nobuild", "debug"],
+            "runtimeArgs": [
+                "--max-old-space-size=8096",
+                "--trace-warnings"
+            ]
         },
         {
             "type": "pwa-node",
@@ -41,7 +52,10 @@
                 "<node_internals>/**"
             ],
             "program": "${workspaceFolder}\\${file}",
-            "args": ["nobuild", "debug"]
+            "args": ["nobuild", "debug"],
+            "runtimeArgs": [
+                "--max-old-space-size=8096"
+            ]
         }        
     ]
 }

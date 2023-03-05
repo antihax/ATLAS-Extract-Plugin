@@ -15,8 +15,7 @@ const yGrids = serverConfig.totalGridsY;
 const worldUnitsX = xGrids * serverConfig.gridSize;
 const worldUnitsY = yGrids * serverConfig.gridSize;
 
-async function buildData() {
-	const pool = new WorkerPool(os.cpus().length / 3, "./build_worker.js");
+async function runServer(grid, pool, x, y) {
 	pool.setMaxListeners(250);
 	let extraArgs = "";
 	if (process.argv.includes("manualmanagedmods")) {
@@ -24,26 +23,61 @@ async function buildData() {
 	}
 
 	extraArgs += " -culture=en";
+
+	let cmd =
+		"start /min " +
+		process.cwd() +
+		`\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5${x}${y}?Port=6${x}${y}?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer ${extraArgs}`;
+
+	// Run in the background
+	let task = new Promise((resolve) => {
+		pool.runTask({cmd, grid}, (err, result) => {
+			return resolve(result);
+		});
+	});
+	return task;
+}
+
+async function buildData() {
+	const pool = new WorkerPool(os.cpus().length / 3, "./build_worker.js");
+
 	process.chdir("DumpResources");
 
 	let tasks = [];
 
+	// First pass, run all servers to generate the json files
 	for (let y = 0; y < yGrids; y++) {
 		for (let x = 0; x < xGrids; x++) {
-			let cmd =
-				"start /min " +
-				process.cwd() +
-				`\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${x}?ServerY=${y}?AltSaveDirectoryName=${x}${y}?ServerAdminPassword=123?QueryPort=5${x}${y}?Port=6${x}${y}?MapPlayerLocation=true -NoBattlEye -log -server -NoSeamlessServer ${extraArgs}`;
 			let grid = helpers.gridName(x, y);
-			let task = new Promise((resolve) => {
-				pool.runTask({cmd, grid}, (err, result) => {
-					return resolve(result);
-				});
+			let file = "../" + resourceDir + grid + ".json";
+
+			// Delete file so we can verify it was created by the extractor
+			fs.stat(file, (err) => {
+				if (!err) fs.unlinkSync(file);
 			});
-			tasks.push(task);
+
+			tasks.push(runServer(grid, pool, x, y));
 		}
 	}
 	await Promise.all(tasks);
+
+	let missingFiles = true;
+	while (missingFiles) {
+		missingFiles = false;
+		for (let y = 0; y < yGrids; y++) {
+			for (let x = 0; x < xGrids; x++) {
+				let grid = helpers.gridName(x, y);
+				let file = "../" + resourceDir + grid + ".json";
+				if (!fs.existsSync(file)) {
+					missingFiles = true;
+					console.log(`Missing file ${file}, restarting server`);
+					tasks.push(runServer(grid, pool, x, y));
+				}
+			}
+		}
+		await Promise.all(tasks);
+	}
+
 	process.chdir(workDir);
 	pool.close();
 }
@@ -166,7 +200,7 @@ async function main() {
 				islandWidth: cp.islandWidth,
 				islandHeight: cp.islandHeight,
 				isControlPoint: cp.isControlPoint,
-				islandPoints: islandInfo[cp.id] ? islandInfo[cp.id].islandPoints || 0 : 0,
+				islandPoints: islandInfo[cp.id] ? islandInfo[cp.id].islandPoints || 0 : 0
 			};
 			i.sublevels = [];
 			for (let sl in s.sublevels) {
@@ -310,29 +344,29 @@ async function main() {
 	// save everything
 	fs.writeFileSync(
 		"./json/config.js",
-		
-			JSON.stringify(
-				sortObjByKey({
-					ServersX: serverConfig.totalGridsX,
-					ServersY: serverConfig.totalGridsY,
-					GridSize: serverConfig.gridSize,
-					GPSBounds: gpsBounds,
-					XRange: Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
-					YRange: Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
-					XScale: 200 / Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
-					YScale: 200 / Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
-					NodesPerAxis: nodesPerAxis,
-					GridOffset: gridOffset,
-					KofiLink: true,
-					ItemLink: true,
-					PathFinder: true,
-					PinTool: true,
-					AtlasMapServer: false,
-					WarehouseTool: false
-				}),
-				null,
-				"\t"
-			)
+
+		JSON.stringify(
+			sortObjByKey({
+				ServersX: serverConfig.totalGridsX,
+				ServersY: serverConfig.totalGridsY,
+				GridSize: serverConfig.gridSize,
+				GPSBounds: gpsBounds,
+				XRange: Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
+				YRange: Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
+				XScale: 200 / Math.abs(gpsBounds.min[0] - gpsBounds.max[0]),
+				YScale: 200 / Math.abs(gpsBounds.min[1] - gpsBounds.max[1]),
+				NodesPerAxis: nodesPerAxis,
+				GridOffset: gridOffset,
+				KofiLink: true,
+				ItemLink: true,
+				PathFinder: true,
+				PinTool: true,
+				AtlasMapServer: false,
+				WarehouseTool: false
+			}),
+			null,
+			"\t"
+		)
 	);
 
 	fs.copyFileSync(resourceDir + "animals.json", "./json/animals.json");
@@ -373,9 +407,9 @@ async function main() {
 						continue nodeSearch;
 					}
 				}
-				
+
 				if (lastY !== undefined) {
-				//	g.addNode(worldToGPS(x, y, gpsBounds).toString(), {});
+					//	g.addNode(worldToGPS(x, y, gpsBounds).toString(), {});
 					g.addLink(worldToGPS(x, y, gpsBounds).toString(), worldToGPS(x, lastY, gpsBounds).toString());
 					g.addLink(worldToGPS(x, lastY, gpsBounds).toString(), worldToGPS(x, y, gpsBounds).toString());
 					if (x > s.gridX * gridSize + gridOffset * 10)
