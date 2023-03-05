@@ -20,6 +20,6 @@ Plugin for ATLAS dedicated server to extract resources, bosses, and other impora
 Please note I cannot offer support. If you manage to get it to work for you, that is awesome; this was not designed with unofficials clusters in mind.
 
 ## Commandline arguments
-`nobuild` - Only process JSON and do not run servers. Useful for debugging.
-`debug` - Print more information
-`manualmanagedmods` - Don't use steamcmd to download mods.
+- `nobuild` - Only process JSON and do not run servers. Useful for debugging.
+- `debug` - Print more information
+- `manualmanagedmods` - Don't use steamcmd to download mods.
