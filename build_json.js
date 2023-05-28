@@ -200,8 +200,12 @@ async function main() {
 				islandWidth: cp.islandWidth,
 				islandHeight: cp.islandHeight,
 				isControlPoint: cp.isControlPoint,
-				islandPoints: islandInfo[cp.id] ? islandInfo[cp.id].islandPoints || 0 : 0
 			};
+			if (islandInfo && islandInfo[cp.id])
+				i.islandPoints = islandInfo[cp.id].islandPoints || 0
+			else
+				i.islandPoints = 0;
+
 			i.sublevels = [];
 			for (let sl in s.sublevels) {
 				let sublevel = s.sublevels[sl];
