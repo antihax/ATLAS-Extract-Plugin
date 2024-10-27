@@ -514,7 +514,7 @@ void dumpAnimals() {
 		json["Animals"][name.ToString()]["requiredAffinity"] = n->RequiredTameAffinityField();
 		json["Animals"][name.ToString()]["requiredAffinityPerBaseLevel"] = n->RequiredTameAffinityPerBaseLevelField();
 
-		//Log::GetLog()->info("animal {} stats {}", name.ToString(), n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize());
+		Log::GetLog()->info("animal {} stats {}", name.ToString(), n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize());
 
 		if (n->GetCharacterStatusComponent() && n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize() > 0)
 			for (int i = 0; i < n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize(); i++) {

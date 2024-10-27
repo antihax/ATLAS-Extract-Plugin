@@ -39,6 +39,7 @@ async function runServer(grid, pool, x, y) {
 }
 
 async function buildData() {
+	// os.cpus().length / 3
 	const pool = new WorkerPool(os.cpus().length / 3, "./build_worker.js");
 
 	process.chdir("DumpResources");
@@ -199,12 +200,10 @@ async function main() {
 				region: s.hiddenAtlasId,
 				islandWidth: cp.islandWidth,
 				islandHeight: cp.islandHeight,
-				isControlPoint: cp.isControlPoint,
+				isControlPoint: cp.isControlPoint
 			};
-			if (islandInfo && islandInfo[cp.id])
-				i.islandPoints = islandInfo[cp.id].islandPoints || 0
-			else
-				i.islandPoints = 0;
+			if (islandInfo && islandInfo[cp.id]) i.islandPoints = islandInfo[cp.id].islandPoints || 0;
+			else i.islandPoints = 0;
 
 			i.sublevels = [];
 			for (let sl in s.sublevels) {
