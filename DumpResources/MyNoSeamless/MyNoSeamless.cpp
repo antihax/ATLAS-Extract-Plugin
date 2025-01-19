@@ -17,6 +17,23 @@
 std::map<unsigned __int64, TArray<unsigned char>* > g_TravelEntries;
 std::map<int, std::chrono::system_clock::time_point> g_LastSeen;
 
+
+
+
+/*
+ASeamlessVolumeManager::EncodeSeamlessTravelDataBody(
+										  (ASeamlessVolumeManager *)v101,
+										  (USeamlessTravelData *)v72,
+										  &TravelingActorIds,
+										  &SerializedObjects);
+		
+		// USeamlessTravelData *SeamlessTravelData will hold travel data after call completes
+		// objects must still be removed from world
+
+ASeamlessVolumeManager::AddSeamlessTravelOperation(v102, (USeamlessTravelData *)v72);
+										*/
+
+
 enum PeerServerMessageType
 {
 	PSM_Ping = 0x0,

@@ -1,9 +1,70 @@
 #include <API/Atlas/Atlas.h>
 #pragma comment(lib, "AtlasApi.lib")
+#include "json.hpp"
+#include <filesystem>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <format>
 
 int gHangTickTime;
 float gMasterDeltaTime;
 float gFixFPS;
+
+static const std::string ServerGrid() {
+	// Get server grid 
+	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
+	const char* x[15] = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O" };
+	const char* y[15] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15" };
+	std::string gridStr = x[grid->GetCurrentServerInfo()->gridXField()];
+	gridStr += y[grid->GetCurrentServerInfo()->gridYField()];
+	return gridStr;
+};
+
+static void DumpDino() {
+	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
+	FVector vec;
+	FVector2D res;
+	nlohmann::json json;
+	vec.X = grid->TotalGridsXField() * (grid->GridSizeField());
+	vec.Y = grid->TotalGridsYField() * (grid->GridSizeField());
+
+	grid->GlobalLocationToGPSLocation(&res, FVector(0, 0, 0));
+	json["min"] = { res.X, res.Y };
+
+	grid->GlobalLocationToGPSLocation(&res, vec);
+	json["max"] = { res.X, res.Y };
+
+	std::filesystem::create_directory("dump");
+	std::ofstream file("dump/" + ServerGrid() + ".json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
+};
+
+
+void DumpDinoData(RCONClientConnection* rconClientConnection, RCONPacket* rconPacket, UWorld* World)
+{
+	FString reply = L"Successfully dumped\n";
+	Log::GetLog()->info(" Dump Data");
+
+	TArray<AActor*> found_actors;
+	// Loop all actors first time to find things we are interested in
+	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), APrimalDinoCharacter::GetPrivateStaticClass(NULL), &found_actors);
+	for (auto actor : found_actors) {
+		auto dino = static_cast<APrimalDinoCharacter*>(actor);
+		Log::GetLog()->info("{} {} {}", dino->TamingTeamIDField(), dino->DinoID1Field(), dino->DinoID2Field());
+	}
+
+	nlohmann::json json;
+	std::filesystem::create_directory("dump");
+	std::ofstream file("dump/gpsbounds.json");
+	file << std::setw(4) << json;
+	file.flush();
+	file.close();
+	
+	rconClientConnection->SendMessageW(rconPacket->Id, 0, &reply);
+}
 
 void ChatRate(AShooterPlayerController* player_controller, FString* message, EChatSendMode::Type /*unused*/)
 {
@@ -80,6 +141,7 @@ void Load() {
 	ArkApi::GetCommands().AddChatCommand("/rate", &ChatRate);
 	ArkApi::GetCommands().AddChatCommand("/fps", &ChatFPS);
 	ArkApi::GetCommands().AddChatCommand("/req", &ChatReq);
+	ArkApi::GetCommands().AddRconCommand("dumpdino", &DumpDinoData);
 	
 }
 

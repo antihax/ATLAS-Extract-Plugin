@@ -193,10 +193,16 @@ nlohmann::json searchObjects() {
 		json[o->NameField().ToString().ToString()] = { {"class", c->NameField().ToString().ToString()}, {"properties", {} } };
 
 		if (c != NULL) {
+			Log::GetLog()->info("iterating: {} ", o->NameField().ToString().ToString());
 			auto p = c->PropertyLinkField();
 			while (p != NULL) {
 				auto v = getVariableData(o, c, p);
-				json[o->NameField().ToString().ToString()]["properties"][p->NameField().ToString().ToString()] = v;
+				
+				if (v.contains("value") && (v["value"] != 0  && v["value"] != "")) {
+					//Log::GetLog()->info("stuff: {} ", v.dump());
+					json[o->NameField().ToString().ToString()]["properties"][p->NameField().ToString().ToString()] = v;
+			
+				}
 				p = p->PropertyLinkNextField();
 			}
 		}
@@ -207,14 +213,16 @@ nlohmann::json searchObjects() {
 void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* This) {
 	auto GameState = ArkApi::GetApiUtils().GetGameState();
 	Log::GetLog()->info("version: {}.{}", GameState->ServerMajorVersionField(), GameState->ServerMinorVersionField());
+	Log::GetLog()->info("searching");
 	auto j = searchObjects();
+	Log::GetLog()->info("search complete");
 	std::filesystem::create_directory("changeanything");
 
 	std::ofstream file("changeanything/classes_" + std::to_string(GameState->ServerMajorVersionField()) + "." + std::to_string(GameState->ServerMinorVersionField()) + ".json");
 	file << std::setw(2) << j;
 	file.flush();
 	file.close();
-	Log::GetLog()->info("complete");
+	Log::GetLog()->info("saved");
 	AShooterGameMode_BeginPlay_original(This);
 }
 
