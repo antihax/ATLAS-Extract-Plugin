@@ -16,10 +16,13 @@ Plugin for ATLAS dedicated server to extract resources, bosses, and other impora
 8. using the ServerGridEditor from Grapeshot Games, export the slippymap tiles to the site directory 
 9. upload or host the site repository on a webserver
 
+If you have a very large configuration you may run out of stack-size. You can increase with such:
+`node --max-old-space-size=8096 .\build_json.js`
+
+
 ## Support
 Please note I cannot offer support. If you manage to get it to work for you, that is awesome; this was not designed with unofficials clusters in mind.
 
 ## Commandline arguments
 - `nobuild` - Only process JSON and do not run servers. Useful for debugging.
 - `debug` - Print more information
-- `manualmanagedmods` - Don't use steamcmd to download mods.

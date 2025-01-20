@@ -19,13 +19,9 @@ const worldUnitsY = yGrids * serverConfig.gridSize;
 
 async function runServer(grid, pool, x, y) {
   pool.setMaxListeners(250);
-  let extraArgs = '';
-  // if (process.argv.includes("manualmanagedmods")) {
-  extraArgs += ' -manualmanagedmods';
-  //}
 
-  extraArgs += ' -culture=en';
-
+  // We are managing the mods now.
+  let extraArgs = '-manualmanagedmods -culture=en';
   let cmd =
       'start /min ' + process.cwd() +
       `\\server\\ShooterGame\\Binaries\\Win64\\ShooterGameServer.exe Ocean?ServerX=${
@@ -67,8 +63,6 @@ async function generateAllGridFiles(pool) {
   // Run remaining servers in parallel
   const tasks = [];
 
-  // We don't need to keep downloading mods
-  process.argv.push('manualmanagedmods');
   for (let y = 0; y < yGrids; y++) {
     for (let x = 0; x < xGrids; x++) {
       // Skip the first server since we already ran it
@@ -135,6 +129,7 @@ async function main() {
   for (let x = 0; x < xGrids; x++) {
     for (let y = 0; y < yGrids; y++) {
       let grid = helpers.gridName(x, y);
+      console.log('Building ' + grid);
       grids[grid] = helpers.parseJSONFile(resourceDir + grid + '.json');
 
       // save power stones
@@ -438,27 +433,32 @@ async function main() {
       './json/assettypes.json',
       JSON.stringify(sortObjByKey(allassettype), null, '\t'));
   fs.writeFileSync(
-      './json/stones.json', JSON.stringify(sortObjByKey(stones), null, '\t'));
+      './json/stones.json',
+      JSON.stringify(sortObjByKey(stones || []), null, '\t'));
   fs.writeFileSync(
-      './json/altars.json', JSON.stringify(sortObjByKey(altars), null, '\t'));
+      './json/altars.json',
+      JSON.stringify(sortObjByKey(altars || []), null, '\t'));
   fs.writeFileSync(
-      './json/regions.json', JSON.stringify(sortObjByKey(regions), null, '\t'));
+      './json/regions.json',
+      JSON.stringify(sortObjByKey(regions || []), null, '\t'));
   fs.writeFileSync(
-      './json/bosses.json', JSON.stringify(sortObjByKey(bosses), null, '\t'));
+      './json/bosses.json',
+      JSON.stringify(sortObjByKey(bosses || []), null, '\t'));
   fs.writeFileSync(
       './json/islands.json', JSON.stringify(sortObjByKey(islands), null, '\t'));
   fs.writeFileSync(
       './json/islandExtended.json',
-      JSON.stringify(sortObjByKey(islandExtended), null, '\t'));
+      JSON.stringify(sortObjByKey(islandExtended || []), null, '\t'));
   fs.writeFileSync(
       './json/gridList.json',
-      JSON.stringify(sortObjByKey(gridList), null, '\t'));
+      JSON.stringify(sortObjByKey(gridList || []), null, '\t'));
   fs.writeFileSync(
       './json/shipPaths.json',
-      JSON.stringify(sortObjByKey(serverConfig.shipPaths), null, '\t'));
+      JSON.stringify(sortObjByKey(serverConfig.shipPaths || []), null, '\t'));
+
   fs.writeFileSync(
       './json/tradeWinds.json',
-      JSON.stringify(sortObjByKey(serverConfig.tradeWinds), null, '\t'));
+      JSON.stringify(sortObjByKey(serverConfig.tradeWinds || []), null, '\t'));
   fs.writeFileSync(
       './json/portals.json',
       JSON.stringify(sortObjByKey(serverConfig.portalPaths || []), null, '\t'));
