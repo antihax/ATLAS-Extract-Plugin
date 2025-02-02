@@ -52,7 +52,6 @@ static void GPSBounds() {
 	grid->GlobalLocationToGPSLocation(&res, vec);
 	json["max"] = { res.X, res.Y };
 
-	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/gpsbounds.json");
 	file << std::setw(4) << json;
 	file.flush();
@@ -77,6 +76,9 @@ FString GetStoneIndexFromActor(AActor* a)
 	TArray<FString> islandData1;
 	TArray<FString> islandData2;
 	UVictoryCore::GetIslandCustomDatas(a, &island, &islandData1, &islandData2);
+
+	if (islandData2.Num() == 0)
+		return FString("");
 
 	int findVar = 0;
 	for (auto s : islandData1) {
@@ -244,7 +246,7 @@ void dumpItems() {
 			}
 		}
 	}
-	std::filesystem::create_directory("resources");
+
 	std::ofstream file("resources/items.json");
 	file << std::setw(4) << json;
 	file.flush();
@@ -265,7 +267,6 @@ void dumpIslandInfo() {
 		};
 	}
 
-	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/islandInfo.json");
 	file << std::setw(4) << json << std::endl;
 	file.flush();
@@ -293,35 +294,11 @@ void dumpShips() {
 			json["Ships"][name.ToString()]["Icon"] = getIconName(n->IconField());
 	}
 
-	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/ships.json");
 	file << std::setw(4) << json << std::endl;
 	file.flush();
 	file.close();
 }
-
-
-nlohmann::json getFoliageSettings() {
-	nlohmann::json json;
-	Log::GetLog()->info("getFoliageSettings");
-
-	TArray<UObject*> types;
-	Globals::GetObjectsOfClass(UFoliageType::GetPrivateStaticClass(NULL), &types, true, EObjectFlags::RF_NoFlags);
-	for (auto object : types) {
-		auto n = static_cast<UFoliageType*> (object);
-		FString name, harvest;
-		n->NameField().ToString(&name);
-		if (n->AttachedComponentClassField().uClass) {
-			UClass* c = n->AttachedComponentClassField().uClass;
-			c->GetPathName(NULL, &harvest);
-		}
-
-		//Log::GetLog()->info("{} {}", name.ToString(), harvest.ToString());
-	}
-
-	return json;
-}
-
 
 void dumpStructures() {
 	nlohmann::json json;
@@ -352,7 +329,6 @@ void dumpStructures() {
 		json["Structures"][name.ToString()]["FoundationRequiresGroundTrace"] = n->bFoundationRequiresGroundTrace().Get();
 	}
 
-	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/structures.json");
 	file << std::setw(4) << json << std::endl;
 	file.flush();
@@ -561,7 +537,95 @@ nlohmann::json getAnimal(TSubclassOf<APrimalDinoCharacter> entryClass) {
 	return animal;
 }
 
+// Compress nodes into a convex hull
+std::vector<point> getNodeLocations(UInstancedStaticMeshComponent* n) {
+	std::vector<point> points;
 
+	for (int i = 0; i < n->GetInstanceCount(); i++) {
+		FVector x;
+		n->GetPositionOfInstance(&x, i);
+		auto g = VectorGPS(x);
+		points.push_back(std::make_tuple(g.X, g.Y));
+	}
+
+	return convexHull(points);
+}
+
+void getResources(nlohmann::json& json) {
+    TArray<UObject*> objects;
+    auto levels = getIslandLevels();
+    Globals::GetObjectsOfClass(UInstancedStaticMeshComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
+
+    for (auto object : objects) {
+        auto n = reinterpret_cast<UInstancedStaticMeshComponent*>(object);
+        if (!n) continue;
+
+        auto componentLevel = n->GetComponentLevel();
+        FString lvlname;
+        componentLevel->GetFullName(&lvlname, NULL);
+        std::string island = GetIslandID(lvlname.ToString());
+        auto level = levels[island];
+        if (!level) continue;
+
+        UPrimalHarvestingComponent* harvestComponent = nullptr;
+        TSubclassOf<UActorComponent> myOverride;
+        AFoliageAttachmentOverrideVolume::GetOverridenFoliageAttachment(&myOverride, level, n->FoliageTypeReferenceField());
+        if (myOverride.uClass) {
+            harvestComponent = static_cast<UPrimalHarvestingComponent*>(myOverride.uClass->GetDefaultObject(true));
+        } else if (n->AttachedComponentClassField().uClass) {
+            harvestComponent = static_cast<UPrimalHarvestingComponent*>(n->AttachedComponentClassField().uClass->GetDefaultObject(true));
+        }
+        if (!harvestComponent) continue;
+
+        std::vector<std::string> names;
+        for (auto& r : harvestComponent->HarvestResourceEntriesField()) {
+            if (r.ResourceItem.uClass) {
+                auto pi = static_cast<UPrimalItem*>(r.ResourceItem.uClass->GetDefaultObject(true));
+                FString type;
+                pi->GetItemName(&type, false, false, NULL);
+                names.push_back(type.ToString());
+                if (n->GetInstanceCount()) {
+						 if (json[island]["resources"][type.ToString()].is_null())
+							 json[island]["resources"][type.ToString()] = 0;
+                    json[island]["resources"][type.ToString()] = json[island]["resources"][type.ToString()] + n->GetInstanceCount();
+                }
+            }
+        }
+		  if (n->GetInstanceCount() && names.size()) {
+			  std::string resourceNames = std::accumulate(names.begin(), names.end(), std::string(),
+				  [](const std::string& a, const std::string& b) -> std::string {
+					  return a + (a.length() > 0 ? "," : "") + b;
+				  });
+
+			  if (json[island]["resourceNodes"][resourceNames].is_null()) {
+				  json[island]["resourceNodes"][resourceNames] = nlohmann::json::array();
+			  }
+			  json[island]["resourceNodes"][resourceNames] += getNodeLocations(n);
+		  }
+    }
+}
+
+
+void extractAll() {
+	nlohmann::json json;
+	Log::GetLog()->info("Server Grid {} ", ServerGrid());
+
+	GPSBounds();
+
+	dumpItems();
+	dumpStructures();
+	dumpShips();
+	dumpLootTables();
+	dumpIslandInfo();
+	dumpAnimals();
+
+	getResources(json);
+
+	std::ofstream file("resources/" + ServerGrid() + "_new.json");
+	file << json.dump(4, ' ', false, nlohmann::json::error_handler_t::ignore);
+	file.flush();
+	file.close();
+}
 
 void extract(float a2) {
 	UWorld* World = ArkApi::GetApiUtils().GetWorld();
@@ -573,7 +637,7 @@ void extract(float a2) {
 	Log::GetLog()->info("Server Grid {} ", ServerGrid());
 
 	GPSBounds();
-	getFoliageSettings();
+
 	dumpItems();
 	dumpStructures();
 	dumpShips();
@@ -663,7 +727,8 @@ void extract(float a2) {
 									num++;
 								}
 							}
-							animals.push_back(getAnimal(entryClass));
+							if (entryClass.uClass)
+								animals.push_back(getAnimal(entryClass));
 						}
 
 						json["Animals"][buff].push_back({
@@ -966,7 +1031,6 @@ void extract(float a2) {
 		json["Meshes"][location.first] = location.second;
 	}
 
-	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/" + ServerGrid() + ".json");
 	file << json.dump(4, ' ', false, nlohmann::json::error_handler_t::ignore);
 	file.flush();
@@ -979,6 +1043,7 @@ void Hook_UShooterGameInstance_StartGameInstance(UShooterGameInstance* a_shooter
 	UShooterGameInstance_StartGameInstance_original(a_shooter_game_instance);
 	
 	extract(1);
+	extractAll();
 	
 	FWindowsPlatformMisc::RequestExit(true);
 	exit(0);
