@@ -83,7 +83,7 @@ async function verifyAndRegenerateFiles(pool) {
 
   while (hasErrors) {
     hasErrors = false;
-    const retryTasks = [];
+    const tasks = [];
 
     for (let y = 0; y < yGrids; y++) {
       for (let x = 0; x < xGrids; x++) {
@@ -93,14 +93,12 @@ async function verifyAndRegenerateFiles(pool) {
         if (!fs.existsSync(jsonPath)) {
           hasErrors = true;
           console.log(`Missing file ${jsonPath}, restarting server`);
-          retryTasks.push(runServer(grid, pool, x, y));
+          tasks.push(runServer(grid, pool, x, y));
         }
       }
     }
 
-    if (retryTasks.length > 0) {
-      await Promise.all(retryTasks);
-    }
+    await Promise.all(tasks);
   }
 }
 

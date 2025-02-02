@@ -10,14 +10,7 @@
 
 #pragma comment(lib, "AtlasApi.lib")
 
-DECLARE_HOOK(FOutputDevice_FormatLogLine, FString*,  FString*, __int32, const FName*, const wchar_t*, __int32);
-
-DECLARE_HOOK(AShooterGameMode_BeginPlay, void, AShooterGameMode*, float);
-DECLARE_HOOK(AShooterGameMode_InitOptions, void, AShooterGameMode*, FString);
-DECLARE_HOOK(AShooterGameMode_InitOptionString, void, AShooterGameMode*, FString, FString, FString);
-DECLARE_HOOK(AShooterGameMode_InitOptionInteger, void, AShooterGameMode*, FString, FString, FString, int);
-DECLARE_HOOK(AShooterGameMode_InitOptionFloat, void, AShooterGameMode*, FString, FString, FString, float);
-DECLARE_HOOK(AShooterGameMode_InitOptionBool, void, AShooterGameMode*, FString, FString, FString, bool);
+DECLARE_HOOK(UShooterGameInstance_StartGameInstance, void, UShooterGameInstance*);
 
 const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food", "Water", "Temperature", "Weight", "MeleeDamageMultiplier", "SpeedMultiplier", "TemperatureFortitude", "CraftingSpeedMultiplier", "VitaminA", "VitaminB", "VitaminC", "VitaminD", "StaminaRegeneration", "MAX" };
 
@@ -25,7 +18,24 @@ const char* statNames[18] = { "Health", "Stamina", "Torpidity", "Oxygen", "Food"
 static const unsigned int ServerId() {
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
 	return grid->GetCurrentServerId();
-};
+}
+
+const std::unordered_map<std::string, ULevel*> getIslandLevels() {
+	std::unordered_map<std::string, ULevel*> levels;
+	for (auto level : ArkApi::GetApiUtils().GetWorld()->LevelsField()) {
+		if (level->SubLevelGroupUniqueIDField() < 0)
+			continue;
+
+		int id = level->SubLevelGroupUniqueIDField();
+		FString name;
+		level->NameField().ToString(&name);
+
+		Log::GetLog()->info("{}", level->SubLevelGroupUniqueIDField());
+		std::string idStr = std::to_string(id);
+		levels[idStr] = level;
+	}
+	return levels;
+}
 
 
 static void GPSBounds() {
@@ -47,7 +57,7 @@ static void GPSBounds() {
 	file << std::setw(4) << json;
 	file.flush();
 	file.close();
-};
+}
 
 
 static const std::string ServerGrid() {
@@ -58,7 +68,8 @@ static const std::string ServerGrid() {
 	std::string gridStr = x[grid->GetCurrentServerInfo()->gridXField()];
 	gridStr += y[grid->GetCurrentServerInfo()->gridYField()];
 	return gridStr;
-};
+}
+
 
 FString GetStoneIndexFromActor(AActor* a)
 {
@@ -77,6 +88,7 @@ FString GetStoneIndexFromActor(AActor* a)
 	return FString("");
 }
 
+
 static FVector2D VectorGPS(FVector loc) {
 	// Get server grid 
 	const auto grid = static_cast<UShooterGameInstance*> (ArkApi::GetApiUtils().GetWorld()->OwningGameInstanceField())->GridInfoField();
@@ -86,12 +98,29 @@ static FVector2D VectorGPS(FVector loc) {
 	grid->ServerLocationToGPSLocation(&gps, grid->GetCurrentServerId(), loc);
 
 	return gps;
-};
+}
+
 
 static FVector2D ActorGPS(AActor* a) {
 	// Get actor location
 	return VectorGPS(a->RootComponentField()->RelativeLocationField());
-};
+}
+
+
+static std::string GetIslandID(std::string s) {
+	transform(s.begin(), s.end(), s.begin(), ::tolower);
+	const std::regex rgx("-([0-9]{1,6})\.");
+
+	std::smatch matches;
+	std::regex_search(s, matches, rgx);
+
+	if (matches.size() < 1) {
+		return "";
+	}
+
+	return matches[1].str();
+}
+
 
 static std::string GetIslandName(std::string s) {
 	transform(s.begin(), s.end(), s.begin(), ::tolower);
@@ -107,6 +136,7 @@ static std::string GetIslandName(std::string s) {
 	return matches[1].str() + matches[2].str();
 }
 
+
 // Remove things we do not care about.
 FString fixName(FString name) {
 	name = name.Replace(L"Default__", L"");
@@ -117,6 +147,7 @@ FString fixName(FString name) {
 	name.RemoveFromStart("_");
 	return name;
 }
+
 
 // Remove things we do not care about.
 FString fixNPCName(FString npcname) {
@@ -130,6 +161,7 @@ FString fixNPCName(FString npcname) {
 	npcname = npcname.Replace(L"Atlas", L"");
 	npcname = npcname.Replace(L"GiantSnake", L"Cobra");
 	npcname = npcname.Replace(L"CarrierTurtle", L"Grand Tortugar");
+	npcname = npcname.Replace(L"CaveBat", L"Bat");
 	npcname = npcname.Replace(L"Giant", L"");
 	npcname = npcname.Replace(L"Child", L"");
 	npcname.RemoveFromEnd(L"_C");
@@ -139,11 +171,13 @@ FString fixNPCName(FString npcname) {
 	return npcname;
 }
 
+
 std::string getIconName(UTexture2D* tex) {
 	FString name;
 	tex->NameField().ToString(&name);
 	return name.ToString();
 }
+
 
 void dumpItems() {
 	nlohmann::json json;
@@ -217,6 +251,7 @@ void dumpItems() {
 	file.close();
 }
 
+
 void dumpIslandInfo() {
 	nlohmann::json json;
 	const auto sgm = ArkApi::GetApiUtils().GetShooterGameMode();
@@ -236,6 +271,7 @@ void dumpIslandInfo() {
 	file.flush();
 	file.close();
 }
+
 
 void dumpShips() {
 	nlohmann::json json;
@@ -286,6 +322,7 @@ nlohmann::json getFoliageSettings() {
 	return json;
 }
 
+
 void dumpStructures() {
 	nlohmann::json json;
 	json["Structures"] = nullptr;
@@ -322,6 +359,7 @@ void dumpStructures() {
 	file.close();
 }
 
+
 nlohmann::json getDiscoveries(UWorld* World) {
 	nlohmann::json json;
 	// Get all Discoveries
@@ -334,6 +372,7 @@ nlohmann::json getDiscoveries(UWorld* World) {
 	}
 	return json;
 }
+
 
 nlohmann::json getLootSets(FSupplyCrateItemSet* set) {
 	nlohmann::json json;
@@ -363,6 +402,7 @@ nlohmann::json getLootSets(FSupplyCrateItemSet* set) {
 	}
 	return json;
 }
+
 
 void dumpLootTables() {
 	Log::GetLog()->info("Dump Loot Tables");
@@ -400,73 +440,12 @@ void dumpLootTables() {
 	file.close();
 }
 
-// Build map of override classes
-std::unordered_map<std::string, UClass*> getOverrideClasses() {
 
-	TArray<AActor*> found_actors;
-	// Build a map of all override resources and their resulting class
-	std::unordered_map<std::string, UClass*> OverrideClasses;
-	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (ArkApi::GetApiUtils().GetWorld()),
-		AActor::GetPrivateStaticClass(NULL), &found_actors);
-	for (auto actor : found_actors) {
-		FString name;
-		actor->GetFullName(&name, NULL);
+#include <fstream>
 
-		// GetPrivateStaticClass is missing from AFoliageAttachmentOverrideVolume, so do it by string
-		if (name.Contains("FoliageOverride")) {
-			std::string island = GetIslandName(name.ToString());
-			auto dz = reinterpret_cast<AFoliageAttachmentOverrideVolume*> (actor);
-			for (auto oxr : dz->FoliageAttachmentOverrides()) {
-				FString name;
-				oxr.ForFoliageTypeName.ToString(&name);
-				OverrideClasses[island + "_" + name.ToString()] = oxr.OverrideActorComponent.uClass;
-			}
-		}
-	}
 
-	return OverrideClasses;
-}
 
-// Build map of harvestable classes
-std::unordered_map<UClass*, std::vector<std::string>> getHarvestableClasses() {
-	nlohmann::json json;
-	TArray<UObject*> objects;
-	std::unordered_map<UClass*, std::vector<std::string>> harvestableClasses;
-	Globals::GetObjectsOfClass(UPrimalHarvestingComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
-	for (auto object : objects) {
-		auto n = static_cast<UPrimalHarvestingComponent*> (object);
-		FString name, path;
-		n->GetFullName(&name, NULL);
-		n->GetPathName(NULL, &path);
-		// Find all the resources provided by the component
-		for (auto r : n->HarvestResourceEntriesField()) {
-			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
-			if (hcSub.uClass) {
-				if (hcSub.uClass->ClassDefaultObjectField()) {
-					auto pi = static_cast<UPrimalItem*> (hcSub.uClass->ClassDefaultObjectField());
-					FString type;
-					pi->GetItemName(&type, false, false, NULL);
-					harvestableClasses[n->ClassField()].push_back(type.ToString());
-					json[path.ToString()].push_back(type.ToString());
-				}
-				else {
-					// Add resource to the list
-					FString type;
-					hcSub.uClass->GetDescription(&type);
-					json[path.ToString()].push_back(type.ToString());
-					harvestableClasses[n->ClassField()].push_back(type.ToString());
-				}
-			}
-		}
-	}
 
-	std::ofstream file("resources/harvestableClasses.json");
-	file << std::setw(4) << json;
-	file.flush();
-	file.close();
-
-	return harvestableClasses;
-}
 
 //static_cast<const void*>(this);
 std::string stringrepresentation(const void* address) {
@@ -474,6 +453,7 @@ std::string stringrepresentation(const void* address) {
 	ss << address;
 	return ss.str();
 }
+
 
 void dumpAnimals() {
 	nlohmann::json json;
@@ -514,7 +494,7 @@ void dumpAnimals() {
 		json["Animals"][name.ToString()]["requiredAffinity"] = n->RequiredTameAffinityField();
 		json["Animals"][name.ToString()]["requiredAffinityPerBaseLevel"] = n->RequiredTameAffinityPerBaseLevelField();
 
-		Log::GetLog()->info("animal {} stats {}", name.ToString(), n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize());
+		//Log::GetLog()->info("animal {} stats {}", name.ToString(), n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize());
 
 		if (n->GetCharacterStatusComponent() && n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize() > 0)
 			for (int i = 0; i < n->GetCharacterStatusComponent()->BaseLevelMaxStatusValuesField().GetSize(); i++) {
@@ -572,6 +552,7 @@ void dumpAnimals() {
 	file.close();
 }
 
+
 nlohmann::json getAnimal(TSubclassOf<APrimalDinoCharacter> entryClass) {
 	auto e = static_cast<APrimalDinoCharacter*> (entryClass.uClass->ClassDefaultObjectField());
 	FString npcname;
@@ -580,11 +561,12 @@ nlohmann::json getAnimal(TSubclassOf<APrimalDinoCharacter> entryClass) {
 		return NULL;
 
 	npcname = fixNPCName(npcname);
-	//Log::GetLog()->info("animal {}", npcname.ToString());
+	
 	nlohmann::json animal;
 	animal["name"] = npcname.ToString();
 	return animal;
 }
+
 
 
 void extract(float a2) {
@@ -616,14 +598,12 @@ void extract(float a2) {
 	// Loop all actors first time to find things we are interested in
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World), AActor::GetPrivateStaticClass(NULL), &found_actors);
 	for (auto actor : found_actors) {
-		actor->BeginPlay();
 		FString name;
 		actor->GetFullName(&name, NULL);
 
 		if (name.Contains("Biome")) {
 			auto gps = ActorGPS(actor);
 			auto biome = static_cast<ABiomeZoneVolume*> (actor);
-			biome->BeginPlay();
 			FString biomeName;
 			biome->GetBiomeZoneName(&biomeName, NULL);
 
@@ -681,8 +661,10 @@ void extract(float a2) {
 									for (auto animal : remap.ToClasses) {
 										if (remap.Weights[num] >= 1.0f)
 											entryClass.uClass = remap.FromClass.uClass;
-										else
-											animals.push_back(getAnimal(animal.uClass));
+										else {
+											if (animal.uClass)
+												animals.push_back(getAnimal(animal.uClass));
+										}
 									}
 									num++;
 								}
@@ -738,7 +720,6 @@ void extract(float a2) {
 
 		if (name.Contains("FloatsamSupplyCrate")) {
 			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
-			fsc->BeginPlay(a2);
 			//Log::GetLog()->info("Found Flotsam Manager {}", name.ToString());
 			json["Flotsam"] = {
 				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
@@ -748,7 +729,6 @@ void extract(float a2) {
 
 		if (name.Contains("SunkenTreasure")) {
 			auto fsc = static_cast<ASupplyCrateSpawningVolume*> (actor);
-			fsc->BeginPlay(a2);
 			//Log::GetLog()->info("Found Sunken Treasure Manager {}", name.ToString());
 			json["SunkenTreasure"] = {
 				{ "spawnLimits", {fsc->MaxNumCratesField(), fsc->CrateSpawnDensityPerAreaField(), fsc->CreateSpawnDensityMultiplierField()} },
@@ -758,7 +738,6 @@ void extract(float a2) {
 
 		if (name.Contains("NPCShipZoneManager")) {
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
-			zoneManager->BeginPlay();
 			//Log::GetLog()->info("Found Ship Zone Manager {}", name.ToString());
 			json["SoTD"] = {
 				{ "spawnLimits", {zoneManager->MinDesiredNumberOfNPCField() * zoneManager->DesiredNumberOfNPCMultiplierField(), zoneManager->AbsoluteMaxNumberOfNPCField(), zoneManager->TheIncreaseNPCIntervalField() * zoneManager->IncreaseNPCIntervalMultiplierField() } },
@@ -770,9 +749,8 @@ void extract(float a2) {
 		}
 
 		if (name.Contains("OceanEpicNPCZoneManager")) {
-			Log::GetLog()->info("Found ocean epic {}", name.ToString());
+			//Log::GetLog()->info("Found ocean epic {}", name.ToString());
 			auto zoneManager = static_cast<ANPCZoneManager*> (actor);
-			zoneManager->BeginPlay();
 			for (const auto dino : zoneManager->NPCSpawnEntriesField()) {
 				int count = 0;
 				for (const auto npc : dino.NPCsToSpawn) {
@@ -781,26 +759,26 @@ void extract(float a2) {
 
 					auto type = static_cast<APrimalDinoCharacter*> (npc.uClass->ClassDefaultObjectField());
 					type->GetFullName(&name, NULL);
-					Log::GetLog()->info("animal {}", name.ToString());
+					//Log::GetLog()->info("animal {}", name.ToString());
 					auto gps = VectorGPS(dino.NPCsSpawnOffsets[count]);
 
 					if (name.Contains("MeanWhale_SeaMonster")) {
 						if (json["Boss"]["MeanWhale"].is_null())
 							json["Boss"]["MeanWhale"] = nlohmann::json::array();
 						json["Boss"]["MeanWhale"].push_back({ gps.X, gps.Y });
-						Log::GetLog()->info("add boss {}", name.ToString());
+						//Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					if (name.Contains("GentleWhale_SeaMonster")) {
 						if (json["Boss"]["GentleWhale"].is_null())
 							json["Boss"]["GentleWhale"] = nlohmann::json::array();
 						json["Boss"]["GentleWhale"].push_back({ gps.X, gps.Y });
-						Log::GetLog()->info("add boss {}", name.ToString());
+						//Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					if (name.Contains("Squid_Character")) {
 						if (json["Boss"]["GiantSquid"].is_null())
 							json["Boss"]["GiantSquid"] = nlohmann::json::array();
 						json["Boss"]["GiantSquid"].push_back({ gps.X, gps.Y });
-						Log::GetLog()->info("add boss {}", name.ToString());
+						//Log::GetLog()->info("add boss {}", name.ToString());
 					}
 					count++;
 				}
@@ -831,130 +809,77 @@ void extract(float a2) {
 	found_actors.Empty();
 
 	// Find actual resources, maps, and meshes
-	auto overrideClasses = getOverrideClasses();
-	auto harvestableClasses = getHarvestableClasses();
+	auto levels = getIslandLevels();
+
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> resources;
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assets;
 	std::unordered_map<std::string, std::unordered_map<std::string, long long>> assetType;
 	std::unordered_map<std::string, std::vector<std::vector<float>>> maps;
 	std::unordered_map<std::string, std::vector<std::string>> meshes;
 
-	nlohmann::json resourceNodes;
-	nlohmann::json assetNodes;
-
 	TArray<UObject*> objects;
 	Globals::GetObjectsOfClass(UInstancedStaticMeshComponent::GetPrivateStaticClass(NULL), &objects, true, EObjectFlags::RF_NoFlags);
 	for (auto object : objects) {
 		auto n = reinterpret_cast<UInstancedStaticMeshComponent*> (object);
+		if (!n) 
+			continue;
 
-		if (n) {
-			FString name;
-			n->GetFullName(&name, NULL);
+		// Get the override key
+		auto componentLevel = n->GetComponentLevel();
+		FString lvlname;
+		componentLevel->GetFullName(&lvlname, NULL);
+		std::string island = GetIslandID(lvlname.ToString());
+		auto level = levels[island];
+		if (!level)
+			continue;
+		
 
-			// Get the override key
-			auto level = n->GetComponentLevel();
-			FString lvlname;
-			level->GetFullName(&lvlname, NULL);
-			std::string island = GetIslandName(lvlname.ToString());
-
-			auto u = n->FoliageTypeReferenceField();
-			if (!u)
-				continue;
-
-			u->NameField().ToString(&name);
-
+		UPrimalHarvestingComponent* harvestComponent = nullptr;
+		TSubclassOf<UActorComponent> myOverride;
+		AFoliageAttachmentOverrideVolume::GetOverridenFoliageAttachment(&myOverride, level, n->FoliageTypeReferenceField());
+		if (myOverride.uClass) {
+			harvestComponent = static_cast<UPrimalHarvestingComponent*> (myOverride.uClass->GetDefaultObject(true));
+		} else {
 			if (n->AttachedComponentClassField().uClass) {
-				FString path;
-				n->AttachedComponentClassField().uClass->GetPathName(NULL, &path);
-				assetType[name.ToString()][path.ToString()] += 1;
+				harvestComponent = static_cast<UPrimalHarvestingComponent*> (n->AttachedComponentClassField().uClass->GetDefaultObject(true));
 			}
+		}
+		if (!harvestComponent)
+			continue;
 
-			TSubclassOf<UActorComponent> result;
-			gameInstance->GetOverridenFoliageAttachment(&result, n->GetComponentLevel(), u);
+		FVector vec;
+		n->GetWorldLocation(&vec);
+		const FVector2D loc = VectorGPS(vec);
 
-			auto nSub = result.uClass;
-			if (!nSub) {
-				// Find old override
-				nSub = n->AttachedComponentClassField().uClass;
+		FString name;
+		n->GetFullName(&name, NULL);
 
-				std::string island = GetIslandName(lvlname.ToString());
-				std::string overrideSettings = island + "_" + name.ToString();
+		// map key
+		char buff[200];
+		snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
+		std::string key = buff;
 
-				if (overrideClasses.find(overrideSettings) != overrideClasses.end()) {
-					nSub = overrideClasses[overrideSettings];
-				}
-				FString path;
-				nSub->GetPathName(NULL, &path);
-				assetType[name.ToString()][path.ToString()] += 1;
-			}
+		FString assetName, path;
+		harvestComponent->GetPathName(NULL, &path);
+		if (n->StaticMeshField()) {
+			n->StaticMeshField()->NameField().ToString(&assetName);
+			assets[key][assetName.ToString()] += n->GetInstanceCount();
+			assetType[name.ToString()][path.ToString()] += n->GetInstanceCount();
+		}
 
-			if (nSub) {
-				// Get GPS Coords
-				FVector vec;
-				n->GetWorldLocation(&vec);
-				const FVector2D loc = VectorGPS(vec);
-				auto count = n->GetInstanceCount();
-				//Log::GetLog()->info("	loc c {} - {} {}", count, loc.X, loc.Y);
-				// Don't add 0 counts
-				if (count > 0) {
-					// Add all the harvestable classes
-					auto rs = harvestableClasses[nSub];
-					std::string nodes = std::accumulate(std::begin(rs), std::end(rs), std::string(), [](std::string& ss, std::string& s) { return ss.empty() ? s : ss + ", " + s; });
-
-					// map key
-					char buff[200];
-					snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
-					std::string key = buff;
-					FString assetName, path;
-					nSub->GetPathName(NULL, &path);
-					if (n->StaticMeshField()) {
-						n->StaticMeshField()->NameField().ToString(&assetName);
-						assets[key][assetName.ToString()] += count;
-						assetType[name.ToString()][path.ToString()] += count;
-						//Log::GetLog()->info("assetName  {} {} {} ", assetName.ToString(), name.ToString(), path.ToString());
-					}
-
-					// count resources
-					for (auto r : rs) {
-						resources[key][r] += count;
-					}
-
-					// save location of nodes
-					for (int i = 0; i < count; i++) {
-						FVector x;
-						n->GetPositionOfInstance(&x, i);
-						auto g = VectorGPS(x);
-						resourceNodes[island][nodes].push_back(std::make_pair(g.X, g.Y));
-						if (!assetName.IsEmpty())
-							assetNodes[island][assetName.ToString()].push_back(std::make_pair(g.X, g.Y));
-					}
-				}
+		for (auto r : harvestComponent->HarvestResourceEntriesField()) {
+			TSubclassOf<UPrimalItem> hcSub = r.ResourceItem;
+			if (hcSub.uClass) {
+				auto pi = static_cast<UPrimalItem*> (hcSub.uClass->GetDefaultObject(true));
+				FString type;
+				pi->GetItemName(&type, false, false, NULL);
+				if (n->GetInstanceCount())
+					resources[key][type.ToString()] += n->GetInstanceCount();
 			}
 		}
 	}
 	objects.Empty();
 
-	for (auto island : resourceNodes.items()) {
-		for (auto node : resourceNodes[island.key()].items()) {
-			std::vector<point> points = resourceNodes[island.key()][node.key()];
-			// Find areas of resources
-			auto hull = convexHull(points);
-			for (auto point : points) {
-				json["DetailedResources"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
-			}
-		}
-	}
-
-	for (auto island : assetNodes.items()) {
-		for (auto node : assetNodes[island.key()].items()) {
-			std::vector<point> points = assetNodes[island.key()][node.key()];
-			// Find areas of resources
-			auto hull = convexHull(points);
-			for (auto point : hull) {
-				json["DetailedAssets"][island.key()][node.key()].push_back({ std::get<0>(point), std::get<1>(point) });
-			}
-		}
-	}
 
 	UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*> (World),
 		AActor::GetPrivateStaticClass(NULL), &found_actors);
@@ -969,7 +894,7 @@ void extract(float a2) {
 			auto node = static_cast<APrimalStructureStaticNodeContainer*>(actor);
 			if (node) {
 				auto tags = actor->TagsField();
-				Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), node->DescriptiveNameField().ToString(), gps.X, gps.Y);
+				//Log::GetLog()->info(" placeholder {} {} - {}/{}", tags.Num(), node->DescriptiveNameField().ToString(), gps.X, gps.Y);
 				json["Altar"][node->DescriptiveNameField().ToString()].push_back({ gps.X, gps.Y });
 			}
 		}
@@ -1001,7 +926,6 @@ void extract(float a2) {
 			snprintf(buff, sizeof(buff), "%.2f:%.2f", loc.X, loc.Y);
 			std::string key = buff;
 
-			sc->BeginPlay(a2);
 			resources[key]["Maps"] += sc->MaxNumCratesField();
 
 			for (auto se : sc->LinkedSupplyCrateEntriesField()) {
@@ -1050,75 +974,34 @@ void extract(float a2) {
 
 	std::filesystem::create_directory("resources");
 	std::ofstream file("resources/" + ServerGrid() + ".json");
-	file << json.dump(-1, ' ', false, nlohmann::json::error_handler_t::ignore);
+	file << json.dump(4, ' ', false, nlohmann::json::error_handler_t::ignore);
 	file.flush();
 	file.close();
 }
 
-void Hook_AShooterGameMode_BeginPlay(AShooterGameMode* a_shooter_game_mode, float a2) {
-	std::filesystem::create_directory("resources");
-	AShooterGameMode_BeginPlay_original(a_shooter_game_mode, a2);
 
-	extract(a2);
+void Hook_UShooterGameInstance_StartGameInstance(UShooterGameInstance* a_shooter_game_instance) {
+	std::filesystem::create_directory("resources");
+	UShooterGameInstance_StartGameInstance_original(a_shooter_game_instance);
+	
+	extract(1);
+	
 	FWindowsPlatformMisc::RequestExit(true);
 	exit(0);
 	Log::GetLog()->info("would exit");
 }
 
 
-//FString* FOutputDevice_FormatLogLine(FString* result, ELogVerbosity::Type Verbosity, const FName* Category, const wchar_t* Message, ELogTimes::Type LogTime)
-
-
-FString* Hook_FOutputDevice_FormatLogLine(FString* result, __int32 Verbosity, const FName* Category, const wchar_t* Message, __int32 LogTime) {
-		//Log::GetLog()->info("{} {}", Verbosity, FString(Message).ToString());
-		if (Message && FString(Message).Len()>0)
-			std::cout << FString(Message).ToString() << std::endl;
-		return FOutputDevice_FormatLogLine_original(result, Verbosity, Category, Message, LogTime);
-}
-
-void Hook_AShooterGameMode_InitOptions(AShooterGameMode* This, FString Options) {
-	AShooterGameMode_InitOptions_original(This, Options);
-}
-
-void Hook_AShooterGameMode_InitOptionString(AShooterGameMode* This, FString CommandLine, FString Section, FString Option) {
-	AShooterGameMode_InitOptionString_original(This, CommandLine, Section, Option);
-}
-
-void Hook_AShooterGameMode_InitOptionInteger(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, int CurrentValue) {
-	AShooterGameMode_InitOptionInteger_original(This, CommandLine, Section, Option, CurrentValue);
-}
-
-void Hook_AShooterGameMode_InitOptionFloat(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, float CurrentValue) {
-	AShooterGameMode_InitOptionFloat_original(This, CommandLine, Section, Option, CurrentValue);
-}
-
-void Hook_AShooterGameMode_InitOptionBool(AShooterGameMode* This, FString CommandLine, FString Section, FString Option, bool CurrentValue) {
-	AShooterGameMode_InitOptionBool_original(This, CommandLine, Section, Option, CurrentValue);
-}
-
 void Load() {
 	Log::Get().Init("DumpResources");
-
-	ArkApi::GetHooks().SetHook("FOutputDevice.FormatLogLine", &Hook_FOutputDevice_FormatLogLine, &FOutputDevice_FormatLogLine_original);
-
-	ArkApi::GetHooks().SetHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay, &AShooterGameMode_BeginPlay_original);
-	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions, &AShooterGameMode_InitOptions_original);
-	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString, &AShooterGameMode_InitOptionString_original);
-	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger, &AShooterGameMode_InitOptionInteger_original);
-	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat, &AShooterGameMode_InitOptionFloat_original);
-	ArkApi::GetHooks().SetHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool, &AShooterGameMode_InitOptionBool_original);
+	ArkApi::GetHooks().SetHook("UShooterGameInstance.StartGameInstance", &Hook_UShooterGameInstance_StartGameInstance, &UShooterGameInstance_StartGameInstance_original);
 }
+
 
 void Unload() {
-	ArkApi::GetHooks().DisableHook("FOutputDevice.FormatLogLine", &Hook_FOutputDevice_FormatLogLine);
-
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.BeginPlay", &Hook_AShooterGameMode_BeginPlay);
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptions", &Hook_AShooterGameMode_InitOptions);
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionString", &Hook_AShooterGameMode_InitOptionString);
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionInteger", &Hook_AShooterGameMode_InitOptionInteger);
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionFloat", &Hook_AShooterGameMode_InitOptionFloat);
-	ArkApi::GetHooks().DisableHook("AShooterGameMode.InitOptionBool", &Hook_AShooterGameMode_InitOptionBool);
+	ArkApi::GetHooks().DisableHook("UShooterGameInstance.StartGameInstance", &Hook_UShooterGameInstance_StartGameInstance);
 }
+
 
 BOOL APIENTRY DllMain(HMODULE /*hModule*/, DWORD ul_reason_for_call, LPVOID /*lpReserved*/) {
 	switch (ul_reason_for_call) {
