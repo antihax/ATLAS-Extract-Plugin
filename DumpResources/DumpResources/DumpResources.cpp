@@ -441,12 +441,6 @@ void dumpLootTables() {
 }
 
 
-#include <fstream>
-
-
-
-
-
 //static_cast<const void*>(this);
 std::string stringrepresentation(const void* address) {
 	std::stringstream ss;
