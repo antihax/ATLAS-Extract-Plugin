@@ -167,6 +167,7 @@ function downloadMods(modids) {
     }
   } catch (error) {
     console.error('Error downloading mods:', error);
+    downloadMods(modids);
   }
 }
 
