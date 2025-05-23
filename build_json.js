@@ -111,8 +111,10 @@ function deleteExistingFile(filePath) {
 async function main() {
   if (!process.argv.includes('nobuild')) {
     // Bootstrap mod download
-    await workshop.downloadMods(serverConfig.ModIDs.split(','));
-    await workshop.installMods(serverConfig.ModIDs.split(','));
+    if (serverConfig.ModIDs) {
+      await workshop.downloadMods(serverConfig.ModIDs.split(','));
+      await workshop.installMods(serverConfig.ModIDs.split(','));
+    }
     await buildData();
   }
   console.log('processing...');
