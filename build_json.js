@@ -63,14 +63,14 @@ async function generateAllGridFiles(pool) {
   // Run remaining servers in parallel
   const tasks = [];
 
+  // Run the first server again because we sometimes have issues loading mods
   for (let y = 0; y < yGrids; y++) {
     for (let x = 0; x < xGrids; x++) {
-      // Skip the first server since we already ran it
-      if (x === 0 && y === 0) continue;
-
       const grid = helpers.gridName(x, y);
       const jsonPath = `../${resourceDir}${grid}.json`;
       deleteExistingFile(jsonPath);
+      jsonPath = `../${resourceDir}${grid}_new.json`;
+      deleteExistingFile(jsonPath);      
       tasks.push(runServer(grid, pool, x, y));
     }
   }
