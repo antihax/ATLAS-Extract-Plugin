@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.32002.261
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.36105.23 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DumpResources", "DumpResources\DumpResources.vcxproj", "{ACBD1852-7779-43A7-A482-61A1E0463C41}"
 EndProject
@@ -14,6 +14,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ChangeAnything", "ChangeAnything\ChangeAnything.vcxproj", "{2AC92E8D-1885-4E8B-80EA-4980CE657F66}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MyNoSeamless", "MyNoSeamless\MyNoSeamless.vcxproj", "{24FFF750-9ABA-424E-9231-3D95589B6327}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SeaTax", "SeaTax\SeaTax.vcxproj", "{BCA3250D-9BA9-4877-AE35-EC6074F958D8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +43,10 @@ Global
 		{24FFF750-9ABA-424E-9231-3D95589B6327}.Debug|x64.Build.0 = Debug|x64
 		{24FFF750-9ABA-424E-9231-3D95589B6327}.Release|x64.ActiveCfg = Release|x64
 		{24FFF750-9ABA-424E-9231-3D95589B6327}.Release|x64.Build.0 = Release|x64
+		{BCA3250D-9BA9-4877-AE35-EC6074F958D8}.Debug|x64.ActiveCfg = Debug|x64
+		{BCA3250D-9BA9-4877-AE35-EC6074F958D8}.Debug|x64.Build.0 = Debug|x64
+		{BCA3250D-9BA9-4877-AE35-EC6074F958D8}.Release|x64.ActiveCfg = Release|x64
+		{BCA3250D-9BA9-4877-AE35-EC6074F958D8}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
