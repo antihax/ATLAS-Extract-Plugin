@@ -56,8 +56,11 @@ async function generateAllGridFiles(pool) {
   const firstX = 0;
   const firstY = 0;
   const firstGrid = helpers.gridName(firstX, firstY);
-  const firstJsonPath = `../${resourceDir}${firstGrid}.json`;
+  let firstJsonPath = `../${resourceDir}${firstGrid}.json`;
   deleteExistingFile(firstJsonPath);
+  firstJsonPath = `../${resourceDir}${firstGrid}_new.json`;
+  deleteExistingFile(firstJsonPath);
+
   await runServer(firstGrid, pool, firstX, firstY);
 
   // Run remaining servers in parallel
@@ -67,7 +70,7 @@ async function generateAllGridFiles(pool) {
   for (let y = 0; y < yGrids; y++) {
     for (let x = 0; x < xGrids; x++) {
       const grid = helpers.gridName(x, y);
-      const jsonPath = `../${resourceDir}${grid}.json`;
+      let jsonPath = `../${resourceDir}${grid}.json`;
       deleteExistingFile(jsonPath);
       jsonPath = `../${resourceDir}${grid}_new.json`;
       deleteExistingFile(jsonPath);      
