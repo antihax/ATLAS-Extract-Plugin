@@ -198,12 +198,13 @@ void HandleMessage(const std::string& chan, const std::string& msg) {
             g_LastSeen[sender] = std::chrono::system_clock::now();
             break;
 
-        case PSM_GlobalChat:
-            ArkApi::GetApiUtils().SendChatMessageToAll("Cross-Server Chat", "[{}] {}: {}",
+        case PSM_GlobalChat: {
+            FString playerName(json["playerName"].get<std::string>());
+            ArkApi::GetApiUtils().SendChatMessageToAll(playerName, "[{}] {}", 
                 json["serverGrid"].get<std::string>(),
-                json["playerName"].get<std::string>(),
                 json["message"].get<std::string>());
             break;
+        }
     }
 }
 
@@ -213,7 +214,7 @@ void ConnectCallback(const std::string&, std::size_t, cpp_redis::connect_state s
 }
 
 void AuthCallback(cpp_redis::reply& reply) {
-    if (reply.is_error()) Log::GetLog()->warn("Redis auth failed");
+    if (reply.is_error()) Log::GetLog()->warn("Redis auth failed {}", reply.error());
 }
 
 void ConnectRedisChannel(const FRedisDatabaseConnectionInfo& info) {
