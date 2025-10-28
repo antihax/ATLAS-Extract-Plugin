@@ -145,31 +145,59 @@ function readCompressionIndex(reader, sizeUnpacked) {
 }
 
 function downloadMods(modids) {
-  if (modids.length === 0) return;
+  // Filter out empty strings and whitespace-only strings
+  const validModIds = Array.isArray(modids) ? 
+    modids.filter(id => id && id.trim() !== '') : [];
+  
+  if (validModIds.length === 0) {
+    console.log('No valid mod IDs provided. Skipping download.');
+    return;
+  }
 
-  console.log('Downloading mods...');
-  const modDir = 'server\\ShooterGame';
+  console.log(`Downloading ${validModIds.length} mods: ${validModIds.join(', ')}`);
   const steamCmdPath = `${
-      process
-          .cwd()}\\DumpResources\\server\\Engine\\Binaries\\ThirdParty\\SteamCMD\\Win64\\steamcmd.exe`;
+      process.cwd()}\\DumpResources\\server\\Engine\\Binaries\\ThirdParty\\SteamCMD\\Win64\\steamcmd.exe`;
+  
+  // Check if SteamCMD exists
+  if (!fs.existsSync(steamCmdPath)) {
+    console.error(`SteamCMD not found at: ${steamCmdPath}`);
+    return;
+  }
+  
   const cmd =
       `${steamCmdPath} +login anonymous +workshop_download_item 834910 ${
-          modids.join(' +workshop_download_item 834910 ')} +quit`;
+          validModIds.join(' +workshop_download_item 834910 ')} +quit`;
 
   try {
     const output = execSync(cmd, {stdio: 'pipe'}).toString();
+    console.log('SteamCMD output:', output);
+    
     const failedDownloads = (output.match(/Download item (\d+) failed/g) ||
-                             []).map(item => item.match(/\d+/)[0]);
+                           []).map(item => item.match(/\d+/)[0]);
 
     if (failedDownloads.length > 0) {
       console.error('Retrying failed downloads:', failedDownloads);
-      downloadMods(failedDownloads);
+      // Prevent infinite recursion by checking if we're making progress
+      if (failedDownloads.length < validModIds.length) {
+        downloadMods(failedDownloads);
+      } else {
+        console.error('All downloads failed. Please check mod IDs and SteamCMD setup.');
+      }
     }
   } catch (error) {
     console.error('Error downloading mods:', error);
-    downloadMods(modids);
+    
+    // Prevent infinite recursion
+    if (validModIds.length > 1) {
+      console.log('Attempting to download mods individually...');
+      // Download one by one instead of retrying the whole batch
+      validModIds.forEach(id => downloadMods([id]));
+    } else {
+      console.error(`Failed to download mod ${validModIds[0]}. Check if the mod ID is valid.`);
+    }
   }
 }
+
 
 function unpackModMeta(buffer) {
   const reader = new UnpackReader(buffer);

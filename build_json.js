@@ -56,24 +56,21 @@ async function generateAllGridFiles(pool) {
   const firstX = 0;
   const firstY = 0;
   const firstGrid = helpers.gridName(firstX, firstY);
-  let firstJsonPath = `../${resourceDir}${firstGrid}.json`;
+  const firstJsonPath = `../${resourceDir}${firstGrid}.json`;
   deleteExistingFile(firstJsonPath);
-  firstJsonPath = `../${resourceDir}${firstGrid}_new.json`;
-  deleteExistingFile(firstJsonPath);
-
   await runServer(firstGrid, pool, firstX, firstY);
 
   // Run remaining servers in parallel
   const tasks = [];
 
-  // Run the first server again because we sometimes have issues loading mods
   for (let y = 0; y < yGrids; y++) {
     for (let x = 0; x < xGrids; x++) {
+      // Skip the first server since we already ran it
+      if (x === 0 && y === 0) continue;
+
       const grid = helpers.gridName(x, y);
-      let jsonPath = `../${resourceDir}${grid}.json`;
+      const jsonPath = `../${resourceDir}${grid}.json`;
       deleteExistingFile(jsonPath);
-      jsonPath = `../${resourceDir}${grid}_new.json`;
-      deleteExistingFile(jsonPath);      
       tasks.push(runServer(grid, pool, x, y));
     }
   }
@@ -111,12 +108,23 @@ function deleteExistingFile(filePath) {
 
 
 
+
 async function main() {
   if (!process.argv.includes('nobuild')) {
     // Bootstrap mod download
     if (serverConfig.ModIDs) {
-      await workshop.downloadMods(serverConfig.ModIDs.split(','));
-      await workshop.installMods(serverConfig.ModIDs.split(','));
+      const modIds = serverConfig.ModIDs.split(',')
+        .filter(id => id && id.trim() !== '');
+      
+      if (modIds.length > 0) {
+        console.log(`Found ${modIds.length} mods to download: ${modIds.join(', ')}`);
+        await workshop.downloadMods(modIds);
+        await workshop.installMods(modIds);
+      } else {
+        console.log('No valid mod IDs found in ServerGrid.json. Continuing without mods.');
+      }
+    } else {
+      console.log('No ModIDs field in ServerGrid.json. Continuing without mods.');
     }
     await buildData();
   }
