@@ -11,12 +11,25 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="MyNoSeamless.cpp" />
+    <ClCompile Include="AtlasGlue.cpp" />
+    <ClCompile Include="GlobalChatHandler.cpp" />
+    <ClCompile Include="TreasureUtils.cpp" />
+    <ClCompile Include="TribeChannelSubscriptionManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Config.h" />
+    <ClInclude Include="DiscordWebhookLeaderElector.h" />
+    <ClInclude Include="DiscordWebhookManager.h" />
+    <ClInclude Include="GlobalChatHandler.h" />
+    <ClInclude Include="RedisManager.h" />
+    <ClInclude Include="ServerUtils.h" />
+    <ClInclude Include="TreasureUtils.h" />
+    <ClInclude Include="TribeChannelSubscriptionManager.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{24FFF750-9ABA-424E-9231-3D95589B6327}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>MyNoSeamless</RootNamespace>
+    <RootNamespace>AtlasGlue</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -58,6 +71,8 @@
     <IncludePath>f:\atlas\AseApi\version\Core\Public;$(ProjectDir)\includes;$(IncludePath)</IncludePath>
     <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <RunCodeAnalysis>false</RunCodeAnalysis>
+    <ExcludePath>
+    </ExcludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -65,7 +80,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;MyNoSeamless_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;AtlasGlue_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <EnablePREfast>false</EnablePREfast>
@@ -75,7 +90,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy i:\atlas\ATLAS-Plugins\MyNoSeamless\x64\Release\MyNoSeamless.dll  i:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\MyNoSeamless</Command>
+      <Command>copy i:\atlas\ATLAS-Plugins\AtlasGlue\x64\Release\AtlasGlue.dll  i:\atlas\server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\AtlasGlue</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -86,7 +101,7 @@
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
-      <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;MyNoSeamless_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;AtlasGlue_EXPORTS;%(PreprocessorDefinitions);CURL_STATICLIB</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <EnablePREfast>false</EnablePREfast>
@@ -98,6 +113,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <DelayLoadDLLs>Permissions.dll</DelayLoadDLLs>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);ws2_32.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>mkdir $(SolutionDir)server\ShooterGame\Binaries\Win64\AtlasApi\Plugins\$(TargetName)

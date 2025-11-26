@@ -292,6 +292,13 @@ void dumpShips() {
 		json["Ships"][name.ToString()]["ClassName"] = className.ToString();
 		if (n->IconField())
 			json["Ships"][name.ToString()]["Icon"] = getIconName(n->IconField());
+		json["Ships"][name.ToString()]["SailUnits"] = n->SailUnits_MaxField();
+		json["Ships"][name.ToString()]["SailingVelocity"] = n->SailingVelocity_MaxAllowedField();
+		json["Ships"][name.ToString()]["MaxWeightMultiplier"] = n->MaxWeightMultiplierField();
+		json["Ships"][name.ToString()]["ResistanceMultiplier"] = n->ResistanceMultiplierField();
+		json["Ships"][name.ToString()]["DamageMultiplier"] = n->ShipWeaponsDamageMultiplierField();
+		json["Ships"][name.ToString()]["NumberOfBeds"] = n->NumberOfBedsField();
+		json["Ships"][name.ToString()]["NumberOfCrew"] = n->NumberOfCrewField();
 	}
 
 	std::ofstream file("resources/ships.json");
@@ -423,6 +430,8 @@ std::string stringrepresentation(const void* address) {
 	ss << address;
 	return ss.str();
 }
+
+
 
 
 void dumpAnimals() {

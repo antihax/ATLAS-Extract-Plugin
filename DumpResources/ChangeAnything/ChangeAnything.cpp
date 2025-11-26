@@ -136,10 +136,10 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 		auto v = Get<FName>(p, o);
 		return { {"type", type}, {"value" ,  v.ToString().ToString()} };
 	}
-	else if (type == "ClassProperty") 
-		return { {"type", type}, {"value", GetText<UClassProperty>(p, o).ToString() }};
-	
-	else if (type == "StructProperty") 
+	else if (type == "ClassProperty")
+		return { {"type", type}, {"value", GetText<UClassProperty>(p, o).ToString() } };
+
+	else if (type == "StructProperty")
 		return { {"type", type}, {"value", GetText<UStructProperty>(p, o).ToString() } };
 
 	else if (type == "ArrayProperty")
@@ -156,16 +156,16 @@ nlohmann::json getVariableData(UObject* o, UClass* c, UProperty* p) {
 
 	else if (type == "MulticastDelegateProperty")
 		return { {"type", type}, {"value", GetText<UMulticastDelegateProperty>(p, o).ToString() } };
-	
+
 	else if (type == "WeakObjectProperty")
 		return { {"type", type}, {"value", GetText<UWeakObjectProperty>(p, o).ToString() } };
 
 	else if (type == "InterfaceProperty")
 		return { {"type", type}, {"value", GetText<UInterfaceProperty>(p, o).ToString() } };
 
-	
-	
-		/*
+
+
+	/*
 //		auto s = Get<UStructProperty*>(p, o);
 	//	Log::GetLog()->info("{} {}", s->NameField().ToString().ToString());
 		nlohmann::json json = {};
@@ -197,11 +197,11 @@ nlohmann::json searchObjects() {
 			auto p = c->PropertyLinkField();
 			while (p != NULL) {
 				auto v = getVariableData(o, c, p);
-				
-				if (v.contains("value") && (v["value"] != 0  && v["value"] != "")) {
+
+				if (v.contains("value") && (v["value"] != 0 && v["value"] != "")) {
 					//Log::GetLog()->info("stuff: {} ", v.dump());
 					json[o->NameField().ToString().ToString()]["properties"][p->NameField().ToString().ToString()] = v;
-			
+
 				}
 				p = p->PropertyLinkNextField();
 			}

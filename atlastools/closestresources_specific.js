@@ -3,23 +3,35 @@ require("tty");
 const fs = require("fs");
 const {nextTick} = require("process");
 
-let rawdata = fs.readFileSync("json/islands.json");
-let islands = JSON.parse(rawdata);
+let islands = JSON.parse(fs.readFileSync("json/islands.json"));
+let gridList = JSON.parse(fs.readFileSync("json/gridList.json"));
+let types = JSON.parse(fs.readFileSync("resourceTypes.json"));
 
-rawdata = fs.readFileSync("resourceTypes.json");
-let types = JSON.parse(rawdata);
+// var home = islands[1693]; // 1693
+// var home2 = islands[2009]; // 2009
+// var home3 = islands[2005]; // 2005
+// var home4 = islands[1951]; // 1953
+// var home5 = islands[1693]; //
+// var home6 = islands[1693]; //
 
-var home = islands[1675]; // 1675 J9
-var home2 = islands[424]; // 424  J10
-var home3 = islands[1235]; // 1235 J7
-var home4 = islands[181]; // 181  I10
-var home5 = islands[347]; // 347
-var home6 = islands[52]; // 52
+// var home = islands[1618]; // 1618
+// var home2 = islands[169]; // 169
+// var home3 = islands[52]; // 2005
+// var home4 = islands[347]; // 1953
+// var home5 = islands[2017]; //
+// var home6 = islands[1684]; //
+
+var home = islands[1254];   // 1254 X
+var home2 = islands[1701];  // 452 X
+var home3 = islands[1684];  // 1684
+var home4 = islands[169];  // 169
+var home5 = islands[1995];  // 1995
+var home6 = islands[452];  // 452
 
 home.types = {};
 for (var island in islands) {
 	var i = islands[island];
-	if (i.name.includes("Trench") || i.name.includes("PVE") || i.name.includes("Cave")) continue;
+	if (i.name.includes("Trench") || i.name.includes("PVE") || i.name.includes("Cave") || i.region !== "Carribia") continue;
 
 	var dist = distance(home.worldX, home.worldY, i.worldX, i.worldY);
 	var dist2 = distance(home2.worldX, home2.worldY, i.worldX, i.worldY);
@@ -27,6 +39,9 @@ for (var island in islands) {
 	var dist4 = distance(home4.worldX, home4.worldY, i.worldX, i.worldY);
 	var dist5 = distance(home5.worldX, home5.worldY, i.worldX, i.worldY);
 	var dist6 = distance(home6.worldX, home6.worldY, i.worldX, i.worldY);
+	//if (i.islandPoints > 35 || i.islandPoints < 16) continue;
+
+	if (gridList[i.grid].forceServerRules >= 3 && dist > 0 && dist2 > 0 && dist3 > 0 && dist4 > 0 && dist5 > 0 && dist6 > 0) continue;
 
 	for (var type in types) {
 		if (
@@ -41,6 +56,7 @@ for (var island in islands) {
 			types[type] != "Sugar" &&
 			types[type] != "Ignore" &&
 			types[type] != "Special" &&
+			types[type] != "Flint" &&
 			types[type] != "Coal" &&
 			types[type] != "Seed" &&
 			types[type] != "Herb" &&
@@ -98,9 +114,14 @@ for (var island in islands) {
 	}
 }
 
+let cnt = 0;
 for (let t in home.types) {
-	if (home.types[t].distance > 0) console.log(t, home.types[t]);
+	if (home.types[t].distance > 0) {
+		cnt++;
+		console.log(t, home.types[t]);
+	}
 }
+console.log(cnt);
 
 //console.log(home.types);
 
@@ -129,7 +150,6 @@ async function demo() {
 	}
 }
 
-demo();
 
 function contains(list, search) {
 	for (var i in search) {

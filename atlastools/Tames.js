@@ -8,7 +8,7 @@ const whloc = [391, -190];
 const calibration = 200 / 1400000 / 13;
 const whdistance = calibration * 4500000.0;
 
-let rawdata = fs.readFileSync("DumpResources/server/ShooterGame/Binaries/Win64/resources/H10.json");
+let rawdata = fs.readFileSync("DumpResources/server/ShooterGame/Binaries/Win64/resources/A7.json");
 let data = JSON.parse(rawdata);
 let url = "";
 
@@ -20,7 +20,7 @@ for (let key in data.Animals) {
 			for (let a in list) {
 				if (!animal.gps) continue;
 				//			if (helpers.distance(whloc, animal.gps[0]) > whdistance) continue;
-				if (helpers.includes(list, "Bear")) {
+				if (helpers.includes(list, "Razortooth")) {
 					for (let a in list) {
 						let an = list[a];
 						for (let g in animal.gps) {
@@ -34,5 +34,5 @@ for (let key in data.Animals) {
 		}
 	}
 }
-console.log("http://atlas.antihax.net/#" + url.slice(0, -1));
+console.log("http://127.0.0.1:8080//#" + url.slice(0, -1));
 helpers.stop();
